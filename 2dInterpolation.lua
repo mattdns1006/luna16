@@ -9,9 +9,11 @@ xSize,ySize= img:size()[2],img:size()[3]
 totSize = xSize*ySize
 
 -- Toy example
-xSize,ySize =  16,14 
+--[[
+xSize,ySize =  12,18 
 totSize = xSize*ySize
 img = torch.linspace(1,totSize,totSize):reshape(ySize,xSize)
+--]]
 
 function rotationMatrix()
 	--Returns a rotation matrix
@@ -23,9 +25,7 @@ end
 function getNearestCoords(coordinates)
 end
 
-function interpolate()
-	-- Takes new coordinates, evaluates the coordinates at 
-end
+
 
 rotMatrix = rotationMatrix()
 angle = 0.1*math.pi 
@@ -73,13 +73,42 @@ x1y1[x1y1:gt(maxXY)] = maxXY
 -- Substract the new coordinates from the four corners
 ij = newCoords - xy -- difference between coordinates and their lower right corner
 i1j1 = x1y1 - newCoords -- difference between coordinates and their lower right corner
+i = ij[{{},{1}}]
+j = ij[{{},{2}}]
+i1 = i1j1[{{},{1}}]
+j1 = i1j1[{{},{2}}]
 
---Example for ith new coordinate
+img = img:reshape(512,512)
 
+-- Evaluates img value using a set of coordinates
+function Fxy(image,coords)
+	local fxy = {}
+	local coordsLen = coords:size()[1]
+	for i=1,coordsLen do 
+		fxy[i] = image[coords[i][1]][coords[i][2]]
+	end
+	return torch.Tensor{fxy}:reshape(coordsLen,1)
+end
 
+-- Get corner values
+fxy = Fxy(img,xy)
+fx1y = Fxy(img,x1y)
+fxy1 = Fxy(img,xy1)
+fx1y1 = Fxy(img,x1y1)
 
+function interpolate(fxy,fx1y,fxy1,fx1y1,i,j,i1,j1)
+	-- Takes new coordinates, evaluates the coordinates at 
+	fxy = torch.cmul(j1,fxy)
+	fx1y = torch.cmul(j,fx1y)
+	fxy1 = torch.cmul(j1,fxy1)
+	fx1y1 = torch.cmul(j,fx1y1)
+	interpolated = torch.cmul(i1,(fxy+fx1y)) + torch.cmul(i,(fxy1+fx1y1))
+	return interpolated
+	
+end
 
-
+newImg = interpolate(fxy,fx1y,fxy1,fx1y1,i,j,i1,j1)
+newImg = newImg:reshape(512,512)
 
 
 
