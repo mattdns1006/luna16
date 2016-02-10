@@ -19,17 +19,19 @@ print("==> Rotation matrix")
 print(rotMatrix)
 
 -- Toy example
---[[
+
 xSize,ySize,zSize = 3,4,5
 totSize = xSize*ySize*zSize
 --img = torch.randn(1,totSize):reshape(xSize,ySize,zSize)
 img = torch.linspace(1,totSize,totSize):reshape(xSize,ySize,zSize)
---]]--
+
+--[[
 -- Lung example
 img = torch.load("lung3Dexamplefull.dat")
 xSize,ySize,zSize = img:size()[1],img:size()[2],img:size()[3]
 totSize = xSize*ySize*zSize 
-
+--]]--
+--
 --Coords
 x,y,z = torch.linspace(1,xSize,xSize), torch.linspace(1,ySize,ySize), torch.linspace(1,zSize,zSize)
 xx = x:repeatTensor(ySize*zSize)
@@ -65,6 +67,8 @@ ozo = fillzo(ooo,0,2)
 ooz = fillzo(ooo,0,3)
 
 xyz = newCoords:clone():floor()
+ijk = newCoords - xyz
+
 xyz[xyz:lt(1)] = 1
 xyz[{{},{1}}][xyz[{{},{1}}]:gt(xSize-1)] = xSize -1
 xyz[{{},{2}}][xyz[{{},{2}}]:gt(ySize-1)] = ySize -1
@@ -79,9 +83,8 @@ x1yz1 = xyz + ozo
 xy1z1 = xyz + zoo
 
 -- Subtract the new coordinates from the 8 corners to get our distances ijk which are our weights
-ijk = newCoords - xyz
 i,j,k = ijk[{{},{1}}], ijk[{{},{2}}], ijk[{{},{3}}]
-i1j1k1 = newCoords - xyz -- (1-i)(1-j)(1-k)
+i1j1k1 = ooo - ijk -- (1-i)(1-j)(1-k)
 i1,j1,k1 = ones - ijk[{{},{1}}], ones - ijk[{{},{2}}], ones - ijk[{{},{3}}]
 
 function flattenIndices(sp_indices, shape)
@@ -114,13 +117,23 @@ fxy1z1 = getElements(img,xy1z1)
 fx1y1z1 = getElements(img,x1y1z1)
 
 
-imgInterpolate = i1:cmul(j1):cmul(k1):cmul(fxyz) +  
-	      i:cmul(j1):cmul(k1):cmul(fx1yz) + 
-	      i1:cmul(j):cmul(k1):cmul(fxy1z) + 
-	      i1:cmul(j1):cmul(k):cmul(fxyz1) + 
-	      i:cmul(j):cmul(k1):cmul(fx1y1z) + 
-	      i:cmul(j1):cmul(k):cmul(fx1yz1) + 
-	      i1:cmul(j):cmul(k):cmul(fxy1z1) + 
-	      i:cmul(j):cmul(k):cmul(fx1y1z1)  
+function imgInterpolate()  
+	local i1_clone = i1:clone() 
+	local j1_clone = j1:clone() 
+	local k1_clone = k1:clone() 
+	local i_clone = i:clone() 
+	local j_clone = j:clone() 
+	local k_clone = k:clone() 
 
-imgInterpolate = imgInterpolate:reshape(xSize,ySize,zSize)
+	return      i_clone:cmul(j1_clone):cmul(k1_clone):cmul(fx1yz) + 
+	      i1_clone:cmul(j_clone):cmul(k1_clone):cmul(fxy1z) + 
+	      i1_clone:cmul(j1_clone):cmul(k_clone):cmul(fxyz1) + 
+	      i_clone:cmul(j_clone):cmul(k1_clone):cmul(fx1y1z) + 
+	      i_clone:cmul(j1_clone):cmul(k_clone):cmul(fx1yz1) + 
+	      i1_clone:cmul(j_clone):cmul(k_clone):cmul(fxy1z1) + 
+	      i_clone:cmul(j_clone):cmul(k_clone):cmul(fx1y1z1) 
+      end
+
+
+imgInterpolate = imgInterpolate():reshape(xSize,ySize,zSize)
+--]]--
