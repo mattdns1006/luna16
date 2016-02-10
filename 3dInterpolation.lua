@@ -3,41 +3,48 @@ require "image"
 require "cunn"
 require "cutorch"
 require "image"
+dofile("getDataPaths.lua")
 
-function rotationMatrix()
-	--Returns a 4D rotation matrix
+function rotationMatrix(angle)
+	--Returns a 3D rotation matrix
 	local rotMatrix = torch.qr(torch.randn(9):reshape(3,3))
 	rotMatrix = rotMatrix:cat(torch.zeros(3))
+	--Rotation about first dimension
+	rotMatrix = torch.Tensor{1,0,0,0,0,torch.cos(angle),-torch.sin(angle),0,0,torch.sin(angle),torch.cos(angle),0}:reshape(3,4)
 	return rotMatrix
 end
 
-rotMatrix = rotationMatrix()
+rotMatrix = rotationMatrix(0.3)
 print("==> Rotation matrix")
 print(rotMatrix)
 
 -- Toy example
---xSize,ySize,zSize =  12,10,6
-xSize,ySize,zSize = 4,4,4 
+--[[
+xSize,ySize,zSize = 3,4,5
 totSize = xSize*ySize*zSize
-img = torch.linspace(1,totSize,totSize):reshape(ySize,xSize,zSize)
---]]
-
+--img = torch.randn(1,totSize):reshape(xSize,ySize,zSize)
+img = torch.linspace(1,totSize,totSize):reshape(xSize,ySize,zSize)
+--]]--
+-- Lung example
+img = torch.load("lung3Dexamplefull.dat")
+xSize,ySize,zSize = img:size()[1],img:size()[2],img:size()[3]
+totSize = xSize*ySize*zSize 
 
 --Coords
 x,y,z = torch.linspace(1,xSize,xSize), torch.linspace(1,ySize,ySize), torch.linspace(1,zSize,zSize)
 xx = x:repeatTensor(ySize*zSize)
 yy = y:repeatTensor(xSize):sort():long():repeatTensor(zSize):double()
-zz = xx:index(1,xx:sort():long())
+zz = z:repeatTensor(xSize*ySize):sort():long():double()
 ones = torch.ones(totSize)
 
 coords = torch.cat({xx:reshape(totSize,1),yy:reshape(totSize,1),zz:reshape(totSize,1),ones:reshape(totSize,1)},2)
 
 --Rotated coords
 newCoords = coords*rotMatrix:transpose(1,2)
-
+newCoords1 = newCoords:clone()
 minMax = torch.min(torch.Tensor{xSize,ySize,zSize})
-newCoords[newCoords:lt(2)] = 2
-newCoords[newCoords:gt(minMax-1)] = minMax - 1
+--newCoords[newCoords:lt(2)] = 2
+--newCoords[newCoords:gt(minMax-1)] = minMax - 1
 
 
 -- Need all 8 corners of the cube in which newCoords[i,j,k] lies
@@ -58,7 +65,12 @@ ozo = fillzo(ooo,0,2)
 ooz = fillzo(ooo,0,3)
 
 xyz = newCoords:clone():floor()
-x1y1z1 = newCoords:clone():ceil()
+xyz[xyz:lt(1)] = 1
+xyz[{{},{1}}][xyz[{{},{1}}]:gt(xSize-1)] = xSize -1
+xyz[{{},{2}}][xyz[{{},{2}}]:gt(ySize-1)] = ySize -1
+xyz[{{},{3}}][xyz[{{},{3}}]:gt(zSize-1)] = zSize -1
+
+x1y1z1 = xyz:clone():ceil()
 x1yz = xyz + ozz
 xy1z = xyz + zoz
 xyz1 = xyz + zzo
@@ -111,6 +123,4 @@ imgInterpolate = i1:cmul(j1):cmul(k1):cmul(fxyz) +
 	      i1:cmul(j):cmul(k):cmul(fxy1z1) + 
 	      i:cmul(j):cmul(k):cmul(fx1y1z1)  
 
-
-
- 
+imgInterpolate = imgInterpolate:reshape(xSize,ySize,zSize)

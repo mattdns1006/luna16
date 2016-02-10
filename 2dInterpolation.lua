@@ -28,9 +28,11 @@ end
 
 
 rotMatrix = rotationMatrix()
+--[[
 angle = 0.1*math.pi 
 rotMatrix = torch.Tensor{torch.cos(angle),-torch.sin(angle),0,
 			torch.sin(angle),torch.cos(angle),0}:reshape(2,3)
+	]]--
 
 --Coords
 x,y =  torch.linspace(1,xSize,xSize), torch.linspace(1,ySize,ySize)
