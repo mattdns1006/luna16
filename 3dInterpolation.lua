@@ -3,34 +3,39 @@ require "image"
 require "cunn"
 require "cutorch"
 require "image"
-dofile("getDataPaths.lua")
+--dofile("getDataPaths.lua")
+
+timer = torch.Timer()
 
 function rotationMatrix(angle)
 	--Returns a 3D rotation matrix
 	local rotMatrix = torch.qr(torch.randn(9):reshape(3,3))
 	rotMatrix = rotMatrix:cat(torch.zeros(3))
 	--Rotation about first dimension
-	rotMatrix = torch.Tensor{1,0,0,0,0,torch.cos(angle),-torch.sin(angle),0,0,torch.sin(angle),torch.cos(angle),0}:reshape(3,4)
+	--rotMatrix = torch.Tensor{1,0,0,0,0,torch.cos(angle),-torch.sin(angle),0,0,torch.sin(angle),torch.cos(angle),0}:reshape(3,4)
+	rotMatrix = torch.Tensor{1,0,0,0,0,1,0,0,0,0,1,0}:reshape(3,4)
 	return rotMatrix
 end
 
-rotMatrix = rotationMatrix(0.3)
+rotMatrix = rotationMatrix(0.01)
 print("==> Rotation matrix")
 print(rotMatrix)
 
 -- Toy example
-
 xSize,ySize,zSize = 3,4,5
 totSize = xSize*ySize*zSize
 --img = torch.randn(1,totSize):reshape(xSize,ySize,zSize)
 img = torch.linspace(1,totSize,totSize):reshape(xSize,ySize,zSize)
 
---[[
 -- Lung example
-img = torch.load("lung3Dexamplefull.dat")
+--[[
+img = torch.load("lung3Dexample100.dat")
 xSize,ySize,zSize = img:size()[1],img:size()[2],img:size()[3]
 totSize = xSize*ySize*zSize 
---]]--
+newTensor = torch.Tensor(xSize,ySize,zSize)
+img = newTensor:copy(img) -- to make contiguous
+]]--
+
 --
 --Coords
 x,y,z = torch.linspace(1,xSize,xSize), torch.linspace(1,ySize,ySize), torch.linspace(1,zSize,zSize)
@@ -59,6 +64,7 @@ function fillzo(zzz_ooo,z_o,column)
 	zzz_ooo_clone:select(2,column):fill(z_o)
 	return zzz_ooo_clone
 end
+
 ozz = fillzo(zzz,1,1)
 zoz = fillzo(zzz,1,2)
 zzo = fillzo(zzz,1,3)
@@ -85,7 +91,7 @@ xy1z1 = xyz + zoo
 -- Subtract the new coordinates from the 8 corners to get our distances ijk which are our weights
 i,j,k = ijk[{{},{1}}], ijk[{{},{2}}], ijk[{{},{3}}]
 i1j1k1 = ooo - ijk -- (1-i)(1-j)(1-k)
-i1,j1,k1 = ones - ijk[{{},{1}}], ones - ijk[{{},{2}}], ones - ijk[{{},{3}}]
+i1,j1,k1 = i1j1k1[{{},{1}}], i1j1k1[{{},{2}}], i1j1k1[{{},{3}}] 
 
 function flattenIndices(sp_indices, shape)
 	local sp_indices = sp_indices - 1
@@ -116,7 +122,6 @@ fx1yz1 = getElements(img,x1yz1)
 fxy1z1 = getElements(img,xy1z1)
 fx1y1z1 = getElements(img,x1y1z1)
 
-
 function imgInterpolate()  
 	local i1_clone = i1:clone() 
 	local j1_clone = j1:clone() 
@@ -136,4 +141,10 @@ function imgInterpolate()
 
 
 imgInterpolate = imgInterpolate():reshape(xSize,ySize,zSize)
+
+print("Time elapsed = " .. timer:time().real .. " seconds.")
+
+
+
+
 --]]--
