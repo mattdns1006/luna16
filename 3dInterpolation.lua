@@ -17,25 +17,32 @@ function rotationMatrix(angle)
 	return rotMatrix
 end
 
-rotMatrix = rotationMatrix(0.1)
+rotMatrix = rotationMatrix(0.3)
 print("==> Rotation matrix")
 print(rotMatrix)
 
--- Toy example
-xSize,ySize,zSize = 3,4,5
-totSize = xSize*ySize*zSize
---img = torch.randn(1,totSize):reshape(xSize,ySize,zSize)
-img = torch.linspace(1,totSize,totSize):reshape(xSize,ySize,zSize)
-
 -- Lung example
-img = torch.load("lung3Dexample200.dat")
-xSize,ySize,zSize = img:size()[1],img:size()[2],img:size()[3]
-totSize = xSize*ySize*zSize 
-newTensor = torch.Tensor(xSize,ySize,zSize)
-img = newTensor:copy(img) -- to make contiguous
---]]--
+function lungImg()
+	img = torch.load("lung3Dexample200.dat")
+	xSize,ySize,zSize = img:size()[1],img:size()[2],img:size()[3]
+	totSize = xSize*ySize*zSize 
+	newTensor = torch.Tensor(xSize,ySize,zSize)
+	img = newTensor:copy(img) -- to make contiguous
+	return img
+end
 
---
+-- Toy example
+function toyImg()
+	xSize,ySize,zSize = 3,4,5
+	totSize = xSize*ySize*zSize
+	--img = torch.randn(1,totSize):reshape(xSize,ySize,zSize)
+	img = torch.linspace(1,totSize,totSize):reshape(xSize,ySize,zSize)
+	return img
+end
+
+img = lungImg()
+--img = toyImg()
+
 --Coords
 x,y,z = torch.linspace(1,xSize,xSize), torch.linspace(1,ySize,ySize), torch.linspace(1,zSize,zSize)
 zz = z:repeatTensor(ySize*xSize)
@@ -79,7 +86,7 @@ xyz[{{},{1}}][xyz[{{},{1}}]:gt(xSize-1)] = xSize -1
 xyz[{{},{2}}][xyz[{{},{2}}]:gt(ySize-1)] = ySize -1
 xyz[{{},{3}}][xyz[{{},{3}}]:gt(zSize-1)] = zSize -1
 
-x1y1z1 = xyz:clone():ceil()
+x1y1z1 = xyz + ooo
 x1yz = xyz + ozz
 xy1z = xyz + zoz
 xyz1 = xyz + zzo
@@ -128,18 +135,27 @@ function imgInterpolate()
 	local i_clone = i:clone() 
 	local j_clone = j:clone() 
 	local k_clone = k:clone() 
+	local fxyz_clone = fxyz:clone()	
+	local fx1yz_clone = fx1yz:clone()	
+	local fxy1z_clone = fxy1z:clone()	
+	local fxyz1_clone = fxyz1:clone()	
+	local fx1y1z_clone = fx1y1z:clone()	
+	local fx1yz1_clone = fx1yz1:clone()	
+	local fxy1z1_clone = fxy1z1:clone()	
+	local fx1y1z1_clone = fx1y1z1:clone()	
+	
 
-	return 	      i1_clone:cmul(j1_clone):cmul(k1_clone):cmul(fxyz) + 
+	return 	      i1_clone:cmul(j1_clone):cmul(k1_clone):cmul(fxyz_clone) + 
 
-		      i_clone:cmul(j1_clone):cmul(k1_clone):cmul(fx1yz) + 
-		      i1_clone:cmul(j_clone):cmul(k1_clone):cmul(fxy1z) + 
-		      i1_clone:cmul(j1_clone):cmul(k_clone):cmul(fxyz1) + 
+		      i_clone:cmul(j1_clone):cmul(k1_clone):cmul(fx1yz_clone) + 
+		      i1_clone:cmul(j_clone):cmul(k1_clone):cmul(fxy1z_clone) + 
+		      i1_clone:cmul(j1_clone):cmul(k_clone):cmul(fxyz1_clone) + 
 
-		      i_clone:cmul(j_clone):cmul(k1_clone):cmul(fx1y1z) + 
-		      i_clone:cmul(j1_clone):cmul(k_clone):cmul(fx1yz1) + 
-		      i1_clone:cmul(j_clone):cmul(k_clone):cmul(fxy1z1) + 
+		      i_clone:cmul(j_clone):cmul(k1_clone):cmul(fx1y1z_clone) + 
+		      i_clone:cmul(j1_clone):cmul(k_clone):cmul(fx1yz1_clone) + 
+		      i1_clone:cmul(j_clone):cmul(k_clone):cmul(fxy1z1_clone) + 
 
-		      i_clone:cmul(j_clone):cmul(k_clone):cmul(fx1y1z1) 
+		      i_clone:cmul(j_clone):cmul(k_clone):cmul(fx1y1z1_clone) 
 end
 
 
