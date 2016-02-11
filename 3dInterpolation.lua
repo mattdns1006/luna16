@@ -17,7 +17,7 @@ function rotationMatrix(angle)
 	return rotMatrix
 end
 
-rotMatrix = rotationMatrix(0.3)
+rotMatrix = rotationMatrix(0.7)
 print("==> Rotation matrix")
 print(rotMatrix)
 
@@ -129,33 +129,20 @@ fxy1z1 = getElements(img,xy1z1)
 fx1y1z1 = getElements(img,x1y1z1)
 
 function imgInterpolate()  
-	local i1_clone = i1:clone() 
-	local j1_clone = j1:clone() 
-	local k1_clone = k1:clone() 
-	local i_clone = i:clone() 
-	local j_clone = j:clone() 
-	local k_clone = k:clone() 
-	local fxyz_clone = fxyz:clone()	
-	local fx1yz_clone = fx1yz:clone()	
-	local fxy1z_clone = fxy1z:clone()	
-	local fxyz1_clone = fxyz1:clone()	
-	local fx1y1z_clone = fx1y1z:clone()	
-	local fx1yz1_clone = fx1yz1:clone()	
-	local fxy1z1_clone = fxy1z1:clone()	
-	local fx1y1z1_clone = fx1y1z1:clone()	
-	
-
-	return 	      i1_clone:cmul(j1_clone):cmul(k1_clone):cmul(fxyz_clone) + 
-
-		      i_clone:cmul(j1_clone):cmul(k1_clone):cmul(fx1yz_clone) + 
-		      i1_clone:cmul(j_clone):cmul(k1_clone):cmul(fxy1z_clone) + 
-		      i1_clone:cmul(j1_clone):cmul(k_clone):cmul(fxyz1_clone) + 
-
-		      i_clone:cmul(j_clone):cmul(k1_clone):cmul(fx1y1z_clone) + 
-		      i_clone:cmul(j1_clone):cmul(k_clone):cmul(fx1yz1_clone) + 
-		      i1_clone:cmul(j_clone):cmul(k_clone):cmul(fxy1z1_clone) + 
-
-		      i_clone:cmul(j_clone):cmul(k_clone):cmul(fx1y1z1_clone) 
+	Wfxyz =	  torch.cmul(i1,j1):cmul(k1)
+	Wfx1yz =  torch.cmul(i,j1):cmul(k1)
+	Wfxy1z =  torch.cmul(i1,j):cmul(k1)
+	Wfxyz1 =  torch.cmul(i1,j1):cmul(k)
+	Wfx1y1z = torch.cmul(i,j):cmul(k1)
+	Wfx1yz1 = torch.cmul(i,j1):cmul(k)
+	Wfxy1z1 = torch.cmul(i1,j):cmul(k)
+	Wfx1y1z1 =torch.cmul(i,j):cmul(k)
+	--weightedSum = Wfxyz + Wfx1yz + Wfxy1z + Wfxyz1 + Wfx1y1z + Wfx1yz1 + Wfx1y1z + Wfxy1z1 + Wfx1y1z1
+	weightedSum = torch.cmul(Wfxyz,fxyz) + torch.cmul(Wfx1yz,fx1yz) + 
+		      torch.cmul(Wfxy1z,fxy1z) + torch.cmul(Wfxyz1,fxyz1) +
+		      torch.cmul(Wfx1y1z,fx1y1z) + torch.cmul(Wfx1yz1,fx1yz1) +
+		      torch.cmul(Wfxy1z1,fxy1z1) + torch.cmul(Wfx1y1z1,fx1y1z1)
+	return weightedSum
 end
 
 
@@ -164,6 +151,3 @@ imgInterpolate = imgInterpolate():reshape(xSize,ySize,zSize)
 print("Time elapsed = " .. timer:time().real .. " seconds.")
 
 
-
-
---]]--
