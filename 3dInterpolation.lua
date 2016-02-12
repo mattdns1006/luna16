@@ -41,7 +41,7 @@ img = lungImg()
 
 function rotation3d(img)
 
-	local angle = torch.uniform(-0.3,0.3)
+	local angle = torch.uniform(0.1,0.3)
 	print("==> Angle", angle)
 	rotMatrix = rotationMatrix(angle)
 	print("==> RotationMatrix")
