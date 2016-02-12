@@ -19,24 +19,26 @@ require "nn"
 normalize = nn.VolumetricBatchNormalization(1)
 
 filePath = imgPathsRaw[10] 
+print("==> Loading file path")
+print(filePath)
+
+--Meta data
 f = io.open(filePath:gsub(".raw",".mhd"),"r")
 meta = f:read("*all")
+print(meta)
 f:close()
 
+--Raw image
 torch.setdefaulttensortype("torch.ShortTensor")
 img= torch.ShortStorage(filePath)
 img = torch.Tensor(img):double()
---img = torch.Tensor(f1):view(1,1,-1,512,512):double()
---img = normalize:forward(img)
 img = img:view(-1,512,512)
 
--- Try view
-obs = 30
+--Saving
 torch.setdefaulttensortype("torch.DoubleTensor")
---image.display(img[obs])
-imgSubset = img[{{1,100},{1,100},{1,100}}]
-torch.save("lung3Dexample100.dat",imgSubset)
-torch.save("lung3Dexamplefull.dat",img)
+imgSubset = img[{{1,196},{200,400},{100,300}}]
+torch.save("lung3Dexample200.dat",imgSubset)
+--torch.save("lung3Dexamplefull.dat",img)
 
 
 
