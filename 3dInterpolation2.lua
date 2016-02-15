@@ -7,9 +7,13 @@ dofile("loadData.lua")
 
 obs = 21 
 fileInfo = getFileInfo(obs)
+noduleCoords = fileInfo["annotation"]["noduleCoords"]
 img = getImg(fileInfo["annotation"]["path"]:gsub(".mhd",".raw"))
 
-
+--Slice image around noduleCoords +- slice size
+z, y, x = noduleCoords["z"],noduleCoords["y"], noduleCoords["x"]
+sliceSize = 64 
+imgSub = img:sub(z-sliceSize,z+sliceSize-1,y-sliceSize,y+sliceSize-1,x-sliceSize,x+sliceSize-1)
 
 
 torch.setdefaulttensortype("torch.DoubleTensor")
