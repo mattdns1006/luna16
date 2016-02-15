@@ -3,17 +3,6 @@ require "paths"
 require "cunn"
 dofile("readCsv.lua")
 
--- ALl raw data is short
-torch.setdefaulttensortype("torch.ShortTensor")
-
---Load file info
-function getFileInfo(obs)
-	local annotation = getAnnotationXYZ(obs)
-	local filePath = annotation["path"]
-	--print("==> Loading file path")
-	--print(annotation)
-	return annotation, filePath
-end 
 
 --Meta data
 function getMeta(filePath)
@@ -30,30 +19,33 @@ function getMeta(filePath)
 	return meta, spacingTable 
 end
 
+--Load file info
+function getFileInfo(obs)
+	local annotation = getAnnotationXYZ(obs)
+	local filePath = annotation["path"]
+	local meta, spacingTable = getMeta(filePath)
+	--print("==> Loading file path")
+	--print(annotation)
+	fileInfo = {}
+	fileInfo["annotation"] = annotation
+	fileInfo["spacing"] = spacingTable
+	fileInfo["meta"] = meta
+	return fileInfo 
+end 
+
 --Raw image
 function getImg(filePath)
+	-- ALl raw data is short
+	torch.setdefaulttensortype("torch.ShortTensor")
 	local img = torch.ShortStorage(filePath)
 	img = torch.Tensor(img):double() -- convert to double for reshape
-	--img = img:view(-1,512,512)
+	img = img:view(-1,512,512)
 	return img
 end
 
-obs = 1
-for i = 1,100 do
-	obs = obs + 1
-	annotation, filePath = getFileInfo(obs)
-	metaData,spacing = getMeta(filePath)
-	print(spacing)
-	--img = getImg(filePath)
-end
 
---Saving
---[[
-torch.setdefaulttensortype("torch.DoubleTensor")
-imgSubset = img[{{1,196},{200,400},{100,300}}]
-torch.save("lung3Dexample200.dat",imgSubset)
---torch.save("lung3Dexamplefull.dat",img)
-]]--
+
+
 
 
 

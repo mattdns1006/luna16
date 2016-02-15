@@ -1,5 +1,5 @@
 require "paths"
-annotationPath = "CSVFILES/annotationsFullPaths.csv"
+annotationPath = "CSVFILES/annotationsNVC.csv"
 
 function csvToTable(path)
 	local csvFile = io.open(path,"r")
@@ -21,9 +21,11 @@ function getAnnotationXYZ(obs)
 	local annotationTable = {}
 	-- Get elements of an observation
 	annotationTable["path"] = annotation[6] 
-	annotationTable["x"] = tonumber(annotation[2])
-	annotationTable["y"] = tonumber(annotation[3])
-	annotationTable["z"] = tonumber(annotation[4])
+	local noduleCoords = {}
+	noduleCoords["x"] = tonumber(annotation[7])
+	noduleCoords["y"] = tonumber(annotation[8])
+	noduleCoords["z"] = tonumber(annotation[9])
+	annotationTable["noduleCoords"] = noduleCoords
 	annotationTable["diameter"] = tonumber(annotation[5])
 
 	return annotationTable 

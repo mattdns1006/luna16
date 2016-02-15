@@ -3,41 +3,24 @@ require "image"
 require "cunn"
 require "cutorch"
 require "image"
---dofile("getDataPaths.lua")
+dofile("loadData.lua")
+
+obs = 21 
+fileInfo = getFileInfo(obs)
+img = getImg(fileInfo["annotation"]["path"]:gsub(".mhd",".raw"))
+
+
+
+
+torch.setdefaulttensortype("torch.DoubleTensor")
 
 globalTimer = torch.Timer()
 
 function rotationMatrix(angle)
 	--Returns a 3D rotation matrix
-	--local rotMatrix = torch.qr(torch.randn(9):reshape(3,3))
-	--rotMatrix = rotMatrix:cat(torch.zeros(3))
-	--Rotation about first dimension
 	local rotMatrix = torch.Tensor{1,0,0,0,0,torch.cos(angle),-torch.sin(angle),0,0,torch.sin(angle),torch.cos(angle),0}:reshape(3,4)
-	--rotMatrix = torch.Tensor{1,0,0,0,0,1,0,0,0,0,1,0}:reshape(3,4)
 	return rotMatrix
 end
-
--- Lung example
-function lungImg()
-	img = torch.load("lung3Dexample200.dat")
-	xSize,ySize,zSize = img:size()[1],img:size()[2],img:size()[3]
-	totSize = xSize*ySize*zSize 
-	newTensor = torch.Tensor(xSize,ySize,zSize)
-	img = newTensor:copy(img) -- to make contiguous
-	return img
-end
-
--- Toy example
-function toyImg()
-	xSize,ySize,zSize = 3,4,5
-	totSize = xSize*ySize*zSize
-	--img = torch.randn(1,totSize):reshape(xSize,ySize,zSize)
-	img = torch.linspace(1,totSize,totSize):reshape(xSize,ySize,zSize)
-	return img
-end
-
-img = lungImg()
---img = toyImg()
 
 function rotation3d(img)
 
@@ -154,7 +137,7 @@ function rotation3d(img)
 	return imgInterpolate
 end
 --img = img:cuda()
-imgInterpolate = rotation3d(img)
+--imgInterpolate = rotation3d(img)
 print("Time elapsed for image rotation = " .. globalTimer:time().real .. " seconds.")
 
 -- Display Image
