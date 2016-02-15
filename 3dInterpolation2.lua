@@ -5,37 +5,51 @@ require "cutorch"
 require "image"
 dofile("loadData.lua")
 
-obs = 21 
-fileInfo = getFileInfo(obs)
-noduleCoords = fileInfo["annotation"]["noduleCoords"]
-img = getImg(fileInfo["annotation"]["path"]:gsub(".mhd",".raw"))
+-- Load image and centre around annotation +- slice size
+function centreAroundNodule(obs,sliceSize)
+	fileInfo = getFileInfo(obs)
+	local noduleCoords = fileInfo["annotation"]["noduleCoords"]
+	local img = getImg(fileInfo["annotation"]["path"]:gsub(".mhd",".raw"))
+	local z, y, x = noduleCoords["z"],noduleCoords["y"], noduleCoords["x"]
+	local imgSub = img:sub(z-sliceSize,z+sliceSize-1,y-sliceSize,y+sliceSize-1,x-sliceSize,x+sliceSize-1)
+	return img, imgSub
+end
 
---Slice image around noduleCoords +- slice size
-z, y, x = noduleCoords["z"],noduleCoords["y"], noduleCoords["x"]
-sliceSize = 64 
-imgSub = img:sub(z-sliceSize,z+sliceSize-1,y-sliceSize,y+sliceSize-1,x-sliceSize,x+sliceSize-1)
-
+obs = 10
+sliceSize = 32 
+loadImgTimer = torch.Timer()
+img, img1 = centreAroundNodule(10,sliceSize)
+print("Time elapsed for loading image of size "..sliceSize .. " = " .. loadImgTimer:time().real .. " seconds.")
 
 torch.setdefaulttensortype("torch.DoubleTensor")
 
-globalTimer = torch.Timer()
-
-function rotationMatrix(angle)
+function rotationMatrix(angle,sliceSize)
 	--Returns a 3D rotation matrix
+	
 	local rotMatrix = torch.Tensor{1,0,0,0,0,torch.cos(angle),-torch.sin(angle),0,0,torch.sin(angle),torch.cos(angle),0}:reshape(3,4)
+	--local rotMatrix = torch.Tensor{1,0,0,-sliceSize,0,torch.cos(angle),-torch.sin(angle),-sliceSize,0,torch.sin(angle),torch.cos(angle),-sliceSize}:reshape(3,4)
 	return rotMatrix
 end
 
-function rotation3d(img)
+function rotation3d(img,sliceSize)
 
-	local angle = torch.uniform(0.1,0.3)
+	-- Get dimensions and clone to make contiguous 
+
+	xSize,ySize,zSize = img:size()[1], img:size()[2], img:size()[3]
+	totSize = xSize*ySize*zSize
+	newTensor = torch.Tensor(xSize,ySize,zSize)
+	img = newTensor:copy(img)
+
+	--local angle = torch.uniform(0,2*math.pi)
+	local angle = torch.uniform(0,0.3)
 	print("==> Angle", angle)
-	rotMatrix = rotationMatrix(angle)
+	rotMatrix = rotationMatrix(angle,sliceSize)
 	print("==> RotationMatrix")
 	print(rotMatrix)
 
 	--Coords
-	x,y,z = torch.linspace(1,xSize,xSize), torch.linspace(1,ySize,ySize), torch.linspace(1,zSize,zSize)
+	x,y,z = torch.linspace(1,xSize,xSize), torch.linspace(1,ySize,ySize), torch.linspace(1,zSize,zSize) -- Old not centered coords
+	--x,y,z = torch.linspace(-xSize/2, xSize/2 - 1, xSize), torch.linspace(-ySize/2, ySize/2 -1 , ySize), torch.linspace(-zSize/2,zSize/2 - 1, zSize)
 	zz = z:repeatTensor(ySize*xSize)
 	yy = y:repeatTensor(zSize):sort():long():repeatTensor(xSize):double()
 	xx = x:repeatTensor(zSize*ySize):sort():long():double()
@@ -141,8 +155,8 @@ function rotation3d(img)
 	return imgInterpolate
 end
 --img = img:cuda()
---imgInterpolate = rotation3d(img)
-print("Time elapsed for image rotation = " .. globalTimer:time().real .. " seconds.")
+imgInterpolate = rotation3d(img1,sliceSize)
+
 
 -- Display Image
 function displayImage()
