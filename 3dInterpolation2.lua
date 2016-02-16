@@ -6,13 +6,10 @@ require "image"
 dofile("loadData.lua")
 dofile("image.lua")
 
-function rotationMatrix(angle, sliceSize)
+function rotationMatrix(angle)
 	--Returns a 3D rotation matrix
-	--local rotMatrix, r  = torch.qr(torch.randn(9):reshape(3,3))
-	--rotMatrix = rotMatrix:cat(torch.zeros(3):fill(0))
 	local rotMatrix = torch.Tensor{1,0,0,0,0,torch.cos(angle),-torch.sin(angle),0,0,torch.sin(angle),torch.cos(angle),0}:reshape(3,4)
-	
-	--local rotMatrix = torch.Tensor{1,0,0,-sliceSize,0,torch.cos(angle),-torch.sin(angle),-sliceSize,0,torch.sin(angle),torch.cos(angle),-sliceSize}:reshape(3,4)
+	--torch.Tensor{1,0,0,-sliceSize,0,torch.cos(angle),-torch.sin(angle),-sliceSize,0,torch.sin(angle),torch.cos(angle),-sliceSize}:reshape(3,4)
 	return rotMatrix
 end
 
@@ -52,10 +49,6 @@ function rotation3d(img, angleMax, spacing, sliceSize)
 	newCoords = newCoords + torch.ones(totSize,3):fill(sliceSize) 
 	newCoords1 = newCoords:clone()
 	minMax = torch.min(torch.Tensor{xSize,ySize,zSize})
-
-	--newCoords[newCoords:lt(2)] = 2
-	--newCoords[newCoords:gt(minMax-1)] = minMax - 1
-
 
 	-- Need all 8 corners of the cube in which newCoords[i,j,k] lies
 	-- ozo means onesZerosOnes
@@ -153,29 +146,35 @@ function displayImage()
 
 	--Initialize displays
 	if displayTrue==nil then
-		zoom = 0.3
+		zoom = 0.7
 		init = image.lena()
 		imgOriginal = image.display{image=init, zoom=zoom, offscreen=false}
 		imgDis = image.display{image=init, zoom=zoom, offscreen=false}
-		imgInterpolateDis= image.display{image=init, zoom=zoom, offscreen=false}
+		imgInterpolateDisZ = image.display{image=init, zoom=zoom, offscreen=false}
+		imgInterpolateDisY = image.display{image=init, zoom=zoom, offscreen=false}
+		imgInterpolateDisX = image.display{image=init, zoom=zoom, offscreen=false}
 		displayTrue = "Display initialized"
 	end
 
-	loadImgTimer = torch.Timer()
-	angleMax = 0.1
-	sliceSize = 32 
+	angleMax = 0.15
+	sliceSize = 50 
 	obs = annotationImg.new(torch.random(90))
 	img, imgSub = obs.loadImg(sliceSize)
-	spacing = obs.spacing
 	
-	print("Time elapsed for loading image of size "..sliceSize .. " = " .. loadImgTimer:time().real .. " seconds.")
-	imgInterpolate = rotation3d(imgSub, angleMax, spacing, sliceSize)
+	for i = 1,1000 do
+		loadImgTimer = torch.Timer()
+		imgInterpolate = rotation3d(imgSub, angleMax, obs.spacing, sliceSize)
+		print("Time elapsed for rotation of cube size = "..sliceSize .. " ==>  " .. loadImgTimer:time().real .. " seconds.")
+		--Display images in predefined windows
+		image.display{image = img[obs.noduleCoords.z], win = imgOriginal}
+		image.display{image = imgSub[sliceSize], win = imgDis}
+		image.display{image = imgInterpolate[sliceSize], win = imgInterpolateDis}
+	end
 
-	--Display images in predefined windows
-	image.display{image = imgSub[sliceSize], win = imgDis}
-	image.display{image = imgInterpolate[sliceSize], win = imgInterpolateDis}
 end
 
+obs = annotationImg.new(torch.random(90))
+img, imgSub = obs.loadImg(32)
 
 
 
