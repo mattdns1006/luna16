@@ -4,25 +4,7 @@ require "cunn"
 require "cutorch"
 require "image"
 dofile("loadData.lua")
-
--- Load image and centre around annotation +- slice size
-function centreAroundNodule(obs,sliceSize)
-
-	torch.setdefaulttensortype("torch.ShortTensor")
-	fileInfo = getFileInfo(obs)
-
-	local noduleCoords = fileInfo["annotation"]["noduleCoords"]
-	local img = getImg(fileInfo["annotation"]["path"]:gsub(".mhd",".raw"))
-	local z, y, x = noduleCoords["z"],noduleCoords["y"], noduleCoords["x"]
-	local spacing = fileInfo["spacing"]
-
-	torch.setdefaulttensortype("torch.DoubleTensor")
-	spacing = torch.diag(torch.Tensor{1/spacing.z,1/spacing.y,1/spacing.x})
-	
-	local imgSub = img:sub(z-sliceSize,z+sliceSize-1,y-sliceSize,y+sliceSize-1,x-sliceSize,x+sliceSize-1)
-	return img, imgSub, spacing
-end
-
+dofile("image.lua")
 
 function rotationMatrix(angle, sliceSize)
 	--Returns a 3D rotation matrix
@@ -166,32 +148,31 @@ function rotation3d(img, angleMax, spacing, sliceSize)
 end
 
 
-
-
-
 -- Display Image
 function displayImage()
 
 	--Initialize displays
 	if displayTrue==nil then
+		zoom = 0.3
 		init = image.lena()
+		imgOriginal = image.display{image=init, zoom=zoom, offscreen=false}
 		imgDis = image.display{image=init, zoom=zoom, offscreen=false}
 		imgInterpolateDis= image.display{image=init, zoom=zoom, offscreen=false}
 		displayTrue = "Display initialized"
 	end
 
+	loadImgTimer = torch.Timer()
 	angleMax = 0.1
 	sliceSize = 32 
-	zoom = 0.5
-	obs = torch.random(90) 
-
-	loadImgTimer = torch.Timer()
-	_, img, spacing  = centreAroundNodule(obs,sliceSize)
+	obs = annotationImg.new(torch.random(90))
+	img, imgSub = obs.loadImg(sliceSize)
+	spacing = obs.spacing
+	
 	print("Time elapsed for loading image of size "..sliceSize .. " = " .. loadImgTimer:time().real .. " seconds.")
-	imgInterpolate = rotation3d(img, angleMax, spacing,sliceSize)
+	imgInterpolate = rotation3d(imgSub, angleMax, spacing, sliceSize)
 
 	--Display images in predefined windows
-	image.display{image = img[sliceSize], win = imgDis}
+	image.display{image = imgSub[sliceSize], win = imgDis}
 	image.display{image = imgInterpolate[sliceSize], win = imgInterpolateDis}
 end
 
