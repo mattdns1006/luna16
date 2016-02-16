@@ -23,11 +23,6 @@ function centreAroundNodule(obs,sliceSize)
 	return img, imgSub, spacing
 end
 
-obs = 10
-sliceSize = 32 
-loadImgTimer = torch.Timer()
-_, img1, spacing  = centreAroundNodule(obs,sliceSize)
-print("Time elapsed for loading image of size "..sliceSize .. " = " .. loadImgTimer:time().real .. " seconds.")
 
 function rotationMatrix(angle, sliceSize)
 	--Returns a 3D rotation matrix
@@ -39,7 +34,7 @@ function rotationMatrix(angle, sliceSize)
 	return rotMatrix
 end
 
-function rotation3d(img, spacing, sliceSize)
+function rotation3d(img, angleMax, spacing, sliceSize)
 
 	-- Get dimensions and clone to make contiguous 
 
@@ -49,7 +44,7 @@ function rotation3d(img, spacing, sliceSize)
 	img = newTensor:copy(img)
 
 	--local angle = torch.uniform(0,2*math.pi)
-	local angle = torch.uniform(0,1)
+	angle = torch.uniform(0,angleMax)
 	print("==> Angle", angle)
 	rotMatrix = rotationMatrix(angle, spacing, sliceSize)
 	print("==> RotationMatrix")
@@ -170,11 +165,34 @@ function rotation3d(img, spacing, sliceSize)
 	return imgInterpolate
 end
 
-imgInterpolate = rotation3d(img1,spacing,sliceSize)
+
+
 
 
 -- Display Image
 function displayImage()
+
+	--Initialize displays
+	if displayTrue==nil then
+		init = image.lena()
+		imgDis = image.display{image=init, zoom=zoom, offscreen=false}
+		imgInterpolateDis= image.display{image=init, zoom=zoom, offscreen=false}
+		displayTrue = "Display initialized"
+	end
+
+	angleMax = 0.1
+	sliceSize = 32 
+	zoom = 0.5
+	obs = torch.random(90) 
+
+	loadImgTimer = torch.Timer()
+	_, img, spacing  = centreAroundNodule(obs,sliceSize)
+	print("Time elapsed for loading image of size "..sliceSize .. " = " .. loadImgTimer:time().real .. " seconds.")
+	imgInterpolate = rotation3d(img, angleMax, spacing,sliceSize)
+
+	--Display images in predefined windows
+	image.display{image = img[sliceSize], win = imgDis}
+	image.display{image = imgInterpolate[sliceSize], win = imgInterpolateDis}
 end
 
 
