@@ -1,5 +1,4 @@
 require "torch"
-require "image"
 require "cunn"
 require "cutorch"
 require "image"
@@ -13,7 +12,7 @@ function rotationMatrix(angle)
 	return rotMatrix
 end
 
-function rotation3d(img, angleMax, spacing, sliceSize)
+function rotation3d(img, angleMax, spacing, sliceSize, cropSize)
 
 	-- Get dimensions and clone to make contiguous 
 
@@ -24,10 +23,13 @@ function rotation3d(img, angleMax, spacing, sliceSize)
 
 	--local angle = torch.uniform(0,2*math.pi)
 	angle = torch.uniform(-angleMax,angleMax)
-	print("==> Angle", angle)
+
 	rotMatrix = rotationMatrix(angle, spacing, sliceSize)
+	--[[
+	print("==> Angle", angle)
 	print("==> RotationMatrix")
 	print(rotMatrix)
+	--]]
 
 	--Coords
 	x,y,z = torch.linspace(1,xSize,xSize), torch.linspace(1,ySize,ySize), torch.linspace(1,zSize,zSize) -- Old not centered coords
@@ -137,6 +139,7 @@ function rotation3d(img, angleMax, spacing, sliceSize)
 
 
 	imgInterpolate = imgInterpolate():reshape(xSize,ySize,zSize)
+	imgInterpolate = imgInterpolate:sub(cropSize,xSize-cropSize-1,cropSize,ySize-cropSize-1,cropSize,xSize-cropSize-1)
 	return imgInterpolate
 end
 
@@ -158,7 +161,10 @@ function displayExample()
 
 	-- Parameters
 	angleMax = 0.10
-	sliceSize = 30 
+	sliceSize = 50 
+	cropSize = 10
+	center = sliceSize - cropSize
+	dimSize = sliceSize*2 - (cropSize*2)
 	-- Clip sizes determined from ipython investigation
 	clipMin = -1014
 	clipMax = 500
@@ -170,14 +176,14 @@ function displayExample()
 	
 		for i = 1,5 do
 			loadImgTimer = torch.Timer()
-			imgInterpolate = rotation3d(imgSub, angleMax, obs.spacing, sliceSize)
+			imgInterpolate = rotation3d(imgSub, angleMax, obs.spacing, sliceSize, cropSize)
 			print("Time elapsed for rotation of cube size = "..sliceSize .. " ==>  " .. loadImgTimer:time().real .. " seconds.")
 			--Display images in predefined windows
 			image.display{image = img[obs.noduleCoords.z], win = imgOriginal}
 			image.display{image = imgSub[sliceSize], win = imgDis}
-			image.display{image = imgInterpolate[sliceSize], win = imgInterpolateDisZ}
-			image.display{image = imgInterpolate[{{},{sliceSize}}]:reshape(sliceSize*2,sliceSize*2), win = imgInterpolateDisY}
-			image.display{image = imgInterpolate[{{},{},{sliceSize}}]:reshape(sliceSize*2,sliceSize*2), win = imgInterpolateDisX}
+			image.display{image = imgInterpolate[center], win = imgInterpolateDisZ}
+			image.display{image = imgInterpolate[{{},{center}}]:reshape(dimSize,dimSize), win = imgInterpolateDisY}
+			image.display{image = imgInterpolate[{{},{},{center}}]:reshape(dimSize,dimSize), win = imgInterpolateDisX}
 		end
 	end
 
@@ -186,17 +192,19 @@ end
 --Example
 function eg()
 
-	angleMax = 0.1
-	sliceSize = 32 
+	-- Parameters
+	angleMax = 0.10
+	sliceSize = 50 
+	cropSize = 10
 	-- Clip sizes determined from ipython investigation
 	clipMin = -1014
 	clipMax = 500
+
 	i = torch.random(90)
 	print(i)
 	obs = annotationImg.new(i)
 	img, imgSub = obs.loadImg(sliceSize,-1014,500)
-	imgSub = imgSub:cuda()
-	imgInterpolate = rotation3d(imgSub, angleMax, obs.spacing, sliceSize)
+	imgInterpolate = rotation3d(imgSub, angleMax, obs.spacing, sliceSize, cropSize)
 end
 
 
