@@ -23,7 +23,7 @@ function rotation3d(img, angleMax, spacing, sliceSize)
 	img = newTensor:copy(img)
 
 	--local angle = torch.uniform(0,2*math.pi)
-	angle = torch.uniform(0,angleMax)
+	angle = torch.uniform(-angleMax,angleMax)
 	print("==> Angle", angle)
 	rotMatrix = rotationMatrix(angle, spacing, sliceSize)
 	print("==> RotationMatrix")
@@ -151,23 +151,24 @@ function displayExample()
 		imgOriginal = image.display{image=init, zoom=zoom, offscreen=false}
 		imgDis = image.display{image=init, zoom=zoom, offscreen=false}
 		imgInterpolateDisZ = image.display{image=init, zoom=zoom, offscreen=false}
-		--imgInterpolateDisY = image.display{image=init, zoom=zoom, offscreen=false}
-		--imgInterpolateDisX = image.display{image=init, zoom=zoom, offscreen=false}
+		imgInterpolateDisY = image.display{image=init, zoom=zoom, offscreen=false}
+		imgInterpolateDisX = image.display{image=init, zoom=zoom, offscreen=false}
 		displayTrue = "Display initialized"
 	end
 
 	-- Parameters
-	angleMax = 0.15
-	sliceSize = 50 
+	angleMax = 0.10
+	sliceSize = 30 
 	-- Clip sizes determined from ipython investigation
 	clipMin = -1014
 	clipMax = 500
 
-	for j=1,10 do
+	for j=1,20 do
 	obs = annotationImg.new(torch.random(90))
 	img, imgSub = obs.loadImg(sliceSize,clipMin,clipMax)
+	--imgSub = imgSub:cuda()
 	
-		for i = 1,10 do
+		for i = 1,5 do
 			loadImgTimer = torch.Timer()
 			imgInterpolate = rotation3d(imgSub, angleMax, obs.spacing, sliceSize)
 			print("Time elapsed for rotation of cube size = "..sliceSize .. " ==>  " .. loadImgTimer:time().real .. " seconds.")
@@ -175,6 +176,8 @@ function displayExample()
 			image.display{image = img[obs.noduleCoords.z], win = imgOriginal}
 			image.display{image = imgSub[sliceSize], win = imgDis}
 			image.display{image = imgInterpolate[sliceSize], win = imgInterpolateDisZ}
+			image.display{image = imgInterpolate[{{},{sliceSize}}]:reshape(sliceSize*2,sliceSize*2), win = imgInterpolateDisY}
+			image.display{image = imgInterpolate[{{},{},{sliceSize}}]:reshape(sliceSize*2,sliceSize*2), win = imgInterpolateDisX}
 		end
 	end
 
@@ -183,7 +186,7 @@ end
 --Example
 function eg()
 
-	angleMax = 0.15
+	angleMax = 0.1
 	sliceSize = 32 
 	-- Clip sizes determined from ipython investigation
 	clipMin = -1014
@@ -192,6 +195,8 @@ function eg()
 	print(i)
 	obs = annotationImg.new(i)
 	img, imgSub = obs.loadImg(sliceSize,-1014,500)
+	imgSub = imgSub:cuda()
+	imgInterpolate = rotation3d(imgSub, angleMax, obs.spacing, sliceSize)
 end
 
 

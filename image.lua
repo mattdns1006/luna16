@@ -53,7 +53,7 @@ function annotationImg.new(obs)
 			if coord <= sliceSize then 
 				returnCoord =  sliceSize + 1
 
-			elseif sliceSize > (coordMax - coord) then 
+			elseif sliceSize >= (coordMax - coord) then 
 				returnCoord = (coordMax - sliceSize - 1)
 			end
 			return returnCoord
@@ -62,6 +62,7 @@ function annotationImg.new(obs)
 		z = checkCoords(z,img:size()[1],sliceSize)
 		y = checkCoords(y,img:size()[2],sliceSize)
 		x = checkCoords(x,img:size()[3],sliceSize)
+
 
 		imgSub = img:sub(z-sliceSize,z+sliceSize-1,y-sliceSize,y+sliceSize-1,x-sliceSize,x+sliceSize-1)
 		return img,imgSub
