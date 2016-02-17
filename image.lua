@@ -33,6 +33,7 @@ function annotationImg.new(obs)
 		torch.setdefaulttensortype("torch.ShortTensor")
 		local img = torch.ShortStorage(self.imgPath)
 		img = torch.Tensor(img):double()
+
 		img = img:view(-1,512,512)
 
 		torch.setdefaulttensortype("torch.DoubleTensor")
@@ -41,16 +42,32 @@ function annotationImg.new(obs)
 		img[img:lt(clipMin)] = clipMin
 		img[img:gt(clipMax)] = clipMax
 
+		-- Remove mean
+		img = img - img:mean()
+
 		z,y,x = self.noduleCoords["z"], self.noduleCoords["y"], self.noduleCoords["x"] 
+
+		-- Function to artifically move nodule position such that we can get a slice^3 cube around the centre of the new artifical nodule
+		function checkCoords(coord, coordMax, sliceSize)
+			returnCoord = coord
+			if coord <= sliceSize then 
+				returnCoord =  sliceSize + 1
+
+			elseif sliceSize > (coordMax - coord) then 
+				returnCoord = (coordMax - sliceSize - 1)
+			end
+			return returnCoord
+		end
+
+		z = checkCoords(z,img:size()[1],sliceSize)
+		y = checkCoords(y,img:size()[2],sliceSize)
+		x = checkCoords(x,img:size()[3],sliceSize)
+
 		imgSub = img:sub(z-sliceSize,z+sliceSize-1,y-sliceSize,y+sliceSize-1,x-sliceSize,x+sliceSize-1)
 		return img,imgSub
 	end
 		
 	return self
 end
-
-
-
---eg = annotationImg.new(10)
 
 

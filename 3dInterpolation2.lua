@@ -142,7 +142,7 @@ end
 
 
 -- Display Image
-function displayImage()
+function displayExample()
 
 	--Initialize displays
 	if displayTrue==nil then
@@ -156,31 +156,43 @@ function displayImage()
 		displayTrue = "Display initialized"
 	end
 
+	-- Parameters
 	angleMax = 0.15
 	sliceSize = 50 
 	-- Clip sizes determined from ipython investigation
 	clipMin = -1014
 	clipMax = 500
+
+	for j=1,10 do
 	obs = annotationImg.new(torch.random(90))
 	img, imgSub = obs.loadImg(sliceSize,clipMin,clipMax)
 	
-	for i = 1,1000 do
-		loadImgTimer = torch.Timer()
-		imgInterpolate = rotation3d(imgSub, angleMax, obs.spacing, sliceSize)
-		print("Time elapsed for rotation of cube size = "..sliceSize .. " ==>  " .. loadImgTimer:time().real .. " seconds.")
-		--Display images in predefined windows
-		image.display{image = img[obs.noduleCoords.z], win = imgOriginal}
-		image.display{image = imgSub[sliceSize], win = imgDis}
-		image.display{image = imgInterpolate[sliceSize], win = imgInterpolateDisZ}
+		for i = 1,10 do
+			loadImgTimer = torch.Timer()
+			imgInterpolate = rotation3d(imgSub, angleMax, obs.spacing, sliceSize)
+			print("Time elapsed for rotation of cube size = "..sliceSize .. " ==>  " .. loadImgTimer:time().real .. " seconds.")
+			--Display images in predefined windows
+			image.display{image = img[obs.noduleCoords.z], win = imgOriginal}
+			image.display{image = imgSub[sliceSize], win = imgDis}
+			image.display{image = imgInterpolate[sliceSize], win = imgInterpolateDisZ}
+		end
 	end
 
 end
 
 --Example
---[[
-obs = annotationImg.new(torch.random(90))
-img, imgSub = obs.loadImg(32,-1014,500)
-]]--
+function eg()
+
+	angleMax = 0.15
+	sliceSize = 32 
+	-- Clip sizes determined from ipython investigation
+	clipMin = -1014
+	clipMax = 500
+	i = torch.random(90)
+	print(i)
+	obs = annotationImg.new(i)
+	img, imgSub = obs.loadImg(sliceSize,-1014,500)
+end
 
 
 
