@@ -29,12 +29,18 @@ function annotationImg.new(obs)
 	---- METHODS ----
 
 	-- Function to load original image and center around nodule given sliceSize
-	function self.loadImg(sliceSize)
+	function self.loadImg(sliceSize,clipMin,clipMax)
 		torch.setdefaulttensortype("torch.ShortTensor")
 		local img = torch.ShortStorage(self.imgPath)
 		img = torch.Tensor(img):double()
 		img = img:view(-1,512,512)
+
 		torch.setdefaulttensortype("torch.DoubleTensor")
+
+		-- Clip image to keep only ROI
+		img[img:lt(clipMin)] = clipMin
+		img[img:gt(clipMax)] = clipMax
+
 		z,y,x = self.noduleCoords["z"], self.noduleCoords["y"], self.noduleCoords["x"] 
 		imgSub = img:sub(z-sliceSize,z+sliceSize-1,y-sliceSize,y+sliceSize-1,x-sliceSize,x+sliceSize-1)
 		return img,imgSub

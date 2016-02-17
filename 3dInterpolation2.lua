@@ -146,20 +146,23 @@ function displayImage()
 
 	--Initialize displays
 	if displayTrue==nil then
-		zoom = 0.7
+		zoom = 0.5
 		init = image.lena()
 		imgOriginal = image.display{image=init, zoom=zoom, offscreen=false}
 		imgDis = image.display{image=init, zoom=zoom, offscreen=false}
 		imgInterpolateDisZ = image.display{image=init, zoom=zoom, offscreen=false}
-		imgInterpolateDisY = image.display{image=init, zoom=zoom, offscreen=false}
-		imgInterpolateDisX = image.display{image=init, zoom=zoom, offscreen=false}
+		--imgInterpolateDisY = image.display{image=init, zoom=zoom, offscreen=false}
+		--imgInterpolateDisX = image.display{image=init, zoom=zoom, offscreen=false}
 		displayTrue = "Display initialized"
 	end
 
 	angleMax = 0.15
 	sliceSize = 50 
+	-- Clip sizes determined from ipython investigation
+	clipMin = -1014
+	clipMax = 500
 	obs = annotationImg.new(torch.random(90))
-	img, imgSub = obs.loadImg(sliceSize)
+	img, imgSub = obs.loadImg(sliceSize,clipMin,clipMax)
 	
 	for i = 1,1000 do
 		loadImgTimer = torch.Timer()
@@ -168,13 +171,16 @@ function displayImage()
 		--Display images in predefined windows
 		image.display{image = img[obs.noduleCoords.z], win = imgOriginal}
 		image.display{image = imgSub[sliceSize], win = imgDis}
-		image.display{image = imgInterpolate[sliceSize], win = imgInterpolateDis}
+		image.display{image = imgInterpolate[sliceSize], win = imgInterpolateDisZ}
 	end
 
 end
 
+--Example
+--[[
 obs = annotationImg.new(torch.random(90))
-img, imgSub = obs.loadImg(32)
+img, imgSub = obs.loadImg(32,-1014,500)
+]]--
 
 
 
