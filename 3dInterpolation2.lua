@@ -16,20 +16,17 @@ function rotation3d(img, angleMax, spacing, sliceSize, cropSize)
 
 	-- Get dimensions and clone to make contiguous 
 
+	--torch.setdefaulttens
 	xSize,ySize,zSize = img:size()[1], img:size()[2], img:size()[3]
 	totSize = xSize*ySize*zSize
 	newTensor = torch.Tensor(xSize,ySize,zSize)
+
+	intervalTimer = torch.Timer()
 	img = newTensor:copy(img)
+	print(intervalTimer:time().real .. " intervalTimer")
 
-	--local angle = torch.uniform(0,2*math.pi)
 	angle = torch.uniform(-angleMax,angleMax)
-
 	rotMatrix = rotationMatrix(angle, spacing, sliceSize)
-	--[[
-	print("==> Angle", angle)
-	print("==> RotationMatrix")
-	print(rotMatrix)
-	--]]
 
 	--Coords
 	x,y,z = torch.linspace(1,xSize,xSize), torch.linspace(1,ySize,ySize), torch.linspace(1,zSize,zSize) -- Old not centered coords
@@ -160,9 +157,9 @@ function displayExample()
 	end
 
 	-- Parameters
-	angleMax = 0.10
+	angleMax = 0.20
 	sliceSize = 50 
-	cropSize = 10
+	cropSize = 14
 	center = sliceSize - cropSize
 	dimSize = sliceSize*2 - (cropSize*2)
 	-- Clip sizes determined from ipython investigation
@@ -181,9 +178,9 @@ function displayExample()
 			--Display images in predefined windows
 			image.display{image = img[obs.noduleCoords.z], win = imgOriginal}
 			image.display{image = imgSub[sliceSize], win = imgDis}
-			image.display{image = imgInterpolate[center], win = imgInterpolateDisZ}
-			image.display{image = imgInterpolate[{{},{center}}]:reshape(dimSize,dimSize), win = imgInterpolateDisY}
-			image.display{image = imgInterpolate[{{},{},{center}}]:reshape(dimSize,dimSize), win = imgInterpolateDisX}
+			image.display{image = imgInterpolate[center + 2], win = imgInterpolateDisZ}
+			image.display{image = imgInterpolate[{{},{center + 2}}]:reshape(dimSize,dimSize), win = imgInterpolateDisY}
+			image.display{image = imgInterpolate[{{},{},{center + 3}}]:reshape(dimSize,dimSize), win = imgInterpolateDisX}
 		end
 	end
 
