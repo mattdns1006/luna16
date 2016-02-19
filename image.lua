@@ -1,4 +1,6 @@
 dofile("readCsv.lua")
+require "cunn"
+require "cutorch"
 
 csv = csvToTable("CSVFILES/annotationsNVC.csv") 
 
@@ -37,6 +39,7 @@ function annotationImg.new(obs)
 		img = img:view(-1,512,512)
 
 		torch.setdefaulttensortype("torch.DoubleTensor")
+		img = img:cuda()
 
 		-- Clip image to keep only ROI
 		img[img:lt(clipMin)] = clipMin
