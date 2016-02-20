@@ -7,6 +7,11 @@ dofile("imageCandidates.lua")
 
 -- GLobal vars
 nObs = table.getn(candidateCsv)
+-- parameters
+angleMax = 0.5
+sliceSize = 96 
+clipMin = -1014 -- clip sizes determined from ipython nb
+clipMax = 500
 
 function rotationMatrix(angle)
 	--Returns a 3D rotation matrix
@@ -32,16 +37,16 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 	ones = torch.ones(totSize)
 
 	coords = torch.cat({xx:reshape(totSize,1),yy:reshape(totSize,1),zz:reshape(totSize,1),ones:reshape(totSize,1)},2)
+	coords = coords:cuda()
 
 	-- Translate coords to be about the origin i.e. mean subtract
-	translate = torch.ones(totSize,4):fill(-sliceSize/2)
+	translate = torch.ones(totSize,4):fill(-sliceSize/2):cuda()
 	coordsT = coords + translate
 
 	-- Rotated coords
 	-- Rotation matrix
 	angle = torch.uniform(-angleMax,angleMax)
-
-	rotMatrix = rotationMatrix(angle)
+	rotMatrix = rotationMatrix(angle):cuda()
 
 	-- Rotation
 	newCoords = coordsT*rotMatrix:transpose(1,2)
@@ -52,7 +57,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 
 	-- Translate coords back to original coordinate system where the centre is on the nodule
 	noduleZ, noduleY, noduleX  = imgObject.z, imgObject.y, imgObject.x
-	noduleTranslate = torch.ones(totSize,3)
+	noduleTranslate = torch.ones(totSize,3):cuda()
 	noduleTranslate[{{},{1}}]:fill(noduleZ)
 	noduleTranslate[{{},{2}}]:fill(noduleY)
 	noduleTranslate[{{},{3}}]:fill(noduleX)
@@ -63,13 +68,14 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 
 	-- Need all 8 corners of the cube in which newCoords[i,j,k] lies
 	-- ozo means onesZerosOnes
-	zzz = torch.zeros(totSize,3)
-	ooo = torch.ones(totSize,3)
+	zzz = torch.zeros(totSize,3):cuda()
+	ooo = torch.ones(totSize,3):cuda()
 
 	function fillzo(zzz_ooo,z_o,column)
 		zzz_ooo_clone = zzz_ooo:clone()
 		zzz_ooo_clone:select(2,column):fill(z_o)
-		return zzz_ooo_clone
+		--return zzz_ooo_clone
+		return zzz_ooo_clone:cuda()
 	end
 
 	ozz = fillzo(zzz,1,1)
@@ -168,11 +174,7 @@ function displayExample()
 		displayTrue = "Display initialized"
 	end
 
-	-- parameters
-	anglemax = 0.2
-	sliceSize = 96 
-	clipmin = -1014 -- clip sizes determined from ipython nb
-	clipmax = 500
+
 
 	for j=1,50 do
 		observationnumber = torch.random(nObs)
@@ -180,7 +182,7 @@ function displayExample()
 
 		for i = 1,3 do
 			loadImgTimer = torch.Timer()
-			imginterpolate = rotation3d(obs, anglemax, sliceSize, clipmin, clipmax)
+			imginterpolate = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax)
 			print("Time elapsed for rotation of cube size = "..sliceSize .. " ==>  " .. loadImgTimer:time().real .. " seconds.")
 			--Display images in predefined windows
 			image.display{image = img[obs.z], win = imgOriginal}
@@ -195,17 +197,13 @@ end
 
 --Example
 function eg(anglemax)
-	-- parameters
-	slicesize = 64 
-	clipmin = -1014 -- clip sizes determined from ipython nb
-	clipmax = 500
 
 	for j=1,1 do
 		--observationNumber = torch.random(nobs)
 		observationNumber = 11106 
 		obs = Candidate:new(observationNumber)
 			       --rotation3d(imgobject, anglemax, slicesize,clipmin,clipmax)
-		imginterpolate = rotation3d(obs, anglemax, slicesize, clipmin, clipmax)
+		imginterpolate = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax)
 		image.display(imginterpolate[32])
 	end
 end
