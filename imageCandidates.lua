@@ -33,7 +33,7 @@ function Candidate:loadImg(clipMin,clipMax,sliceSize)
 
 	img = img:view(-1,512,512)
 
-	--img = img:cuda()
+	img = img:cuda()
 	--
 
 	-- Clip image to keep only ROI
