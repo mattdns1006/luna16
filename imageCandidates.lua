@@ -23,12 +23,12 @@ end
 
 function Candidate:loadImg(clipMin,clipMax,sliceSize)
 
-	torch.setdefaulttensortype("torch.ShortTensor")
+	--torch.setdefaulttensortype("torch.ShortTensor")
 	local img = torch.ShortStorage(self.imgPath)
 
-	img = torch.Tensor(img):double()
-
-	torch.setdefaulttensortype("torch.DoubleTensor")
+	--img = torch.Tensor(img):double()
+	img = torch.ShortTensor(img):double()
+	--torch.setdefaulttensortype("torch.DoubleTensor")
 
 	img = img:view(-1,512,512)
 

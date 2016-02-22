@@ -2,7 +2,6 @@ require "torch"
 require "cunn"
 require "cutorch"
 require "image"
---dofile("imageCandidates.lua")
 
 function rotationMatrix(angle)
 	--Returns a 3D rotation matrix
@@ -161,11 +160,16 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 	return imgInterpolate
 end
 
-
--- Display Image
 --[[
+-- Display Image
 function displayExample()
 
+	nObs = table.getn(candidateCsv)
+	trainProportion = 0.8
+	angleMax = 0.3
+	sliceSize = 64 
+	clipMin = -1014 -- clip sizes determined from ipython nb
+	clipMax = 500
 	--Initialize displays
 	if displayTrue==nil then
 		zoom = 0.65
@@ -199,7 +203,6 @@ function displayExample()
 
 end 
 
-
 --Example
 function eg3d()
 
@@ -212,7 +215,6 @@ function eg3d()
 		--image.display(imginterpolate[32])
 	end
 end
-
 ]]--
 
 
