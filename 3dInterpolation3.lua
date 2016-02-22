@@ -2,18 +2,7 @@ require "torch"
 require "cunn"
 require "cutorch"
 require "image"
-dofile("loadData.lua")
-dofile("imageCandidates.lua")
-
--- GLobal vars
-nObs = table.getn(candidateCsv)
--- parameters
-angleMax = 0.3
-sliceSize = 3 
-clipMin = -1014 -- clip sizes determined from ipython nb
-clipMax = 500
-
-
+--dofile("imageCandidates.lua")
 
 function rotationMatrix(angle)
 	--Returns a 3D rotation matrix
@@ -29,57 +18,63 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 	intervalTimer = torch.Timer()
 
 	--torch.setdefaulttens
-	xSize,ySize,zSize = sliceSize, sliceSize, sliceSize -- Making a cube hence all dimensions are the same (possibly change)
-	totSize = xSize*ySize*zSize
+	local xSize,ySize,zSize = sliceSize, sliceSize, sliceSize -- Making a cube hence all dimensions are the same (possibly change)
+	local totSize = xSize*ySize*zSize
 
 	--Coords
-	x,y,z = torch.linspace(1,xSize,xSize), torch.linspace(1,ySize,ySize), torch.linspace(1,zSize,zSize) -- Old not centered coords
-	zz = z:repeatTensor(ySize*xSize)
-	yy = y:repeatTensor(zSize):sort():long():repeatTensor(xSize):double()
-	xx = x:repeatTensor(zSize*ySize):sort():long():double()
+	local x,y,z = torch.linspace(1,xSize,xSize), torch.linspace(1,ySize,ySize), torch.linspace(1,zSize,zSize) -- Old not centered coords
+	local zz = z:repeatTensor(ySize*xSize)
+	local yy = y:repeatTensor(zSize):sort():long():repeatTensor(xSize):double()
+	local xx = x:repeatTensor(zSize*ySize):sort():long():double()
 	--ones = torch.ones(totSize)
 
 	--coords = torch.cat({xx:reshape(totSize,1),yy:reshape(totSize,1),zz:reshape(totSize,1),ones:reshape(totSize,1)},2)
-	coords = torch.cat({xx:reshape(totSize,1),yy:reshape(totSize,1),zz:reshape(totSize,1)},2)
-	coords = coords:cuda()
+	local coords = torch.cat({xx:reshape(totSize,1),yy:reshape(totSize,1),zz:reshape(totSize,1)},2)
+	--coords = coords:cuda()
 
 	-- Translate coords to be about the origin i.e. mean subtract
-	translate = torch.ones(totSize,3):fill(-sliceSize/2):cuda()
-	coordsT = coords + translate
+	local translate = torch.ones(totSize,3):fill(-sliceSize/2)
+	--translate = torch.ones(totSize,3):fill(-sliceSize/2):cuda()
+	local coordsT = coords + translate
 
 	-- Rotated coords
 	-- Rotation matrix
-	angle = torch.uniform(-angleMax,angleMax)
-	rotMatrix = rotationMatrix(angle):cuda()
+	local angle = torch.uniform(-angleMax,angleMax)
+	local rotMatrix = rotationMatrix(angle)
+	--rotMatrix = rotationMatrix(angle):cuda()
 
 	-- Rotation
-	newCoords = coordsT*rotMatrix:transpose(1,2)
+	local newCoords = coordsT*rotMatrix:transpose(1,2)
 
 	--SPacing
-	--spacing  = torch.diag(torch.Tensor{1/imgObject.zSpacing, 1/imgObject.ySpacing, 1/imgObject.xSpacing}):cuda()
-	--newCoords = newCoords*spacing -- Using spacing information to transform back to the "real world"
+	local spacing  = torch.diag(torch.Tensor{1/imgObject.zSpacing, 1/imgObject.ySpacing, 1/imgObject.xSpacing})
+
+	newCoords = newCoords*spacing -- Using spacing information to transform back to the "real world"
 
 	-- Translate coords back to original coordinate system where the centre is on the nodule
-	noduleZ, noduleY, noduleX  = imgObject.z, imgObject.y, imgObject.x
-	noduleTranslate = torch.ones(totSize,3):cuda()
+	local noduleZ, noduleY, noduleX  = imgObject.z, imgObject.y, imgObject.x
+	local noduleTranslate = torch.ones(totSize,3)
+	--noduleTranslate = torch.ones(totSize,3):cuda()
 	noduleTranslate[{{},{1}}]:fill(noduleZ)
 	noduleTranslate[{{},{2}}]:fill(noduleY)
 	noduleTranslate[{{},{3}}]:fill(noduleX)
 
-	newCoordsT = newCoords + noduleTranslate -- These coords are now in the original space
-	newCoords1 = newCoordsT:clone()
+	local newCoordsT = newCoords + noduleTranslate -- These coords are now in the original space
+	local newCoords1 = newCoordsT:clone()
 	--minMax = torch.min(torch.Tensor{xSize,ySize,zSize})
 
 	-- Need all 8 corners of the cube in which newCoords[i,j,k] lies
 	-- ozo means onesZerosOnes
-	zzz = torch.zeros(totSize,3):cuda()
-	ooo = torch.ones(totSize,3):cuda()
+	local zzz = torch.zeros(totSize,3)
+	--zzz = torch.zeros(totSize,3):cuda()
+	local ooo = torch.ones(totSize,3)
+	--ooo = torch.ones(totSize,3):cuda()
 
-	function fillzo(zzz_ooo,z_o,column)
+	local function fillzo(zzz_ooo,z_o,column)
 		zzz_ooo_clone = zzz_ooo:clone()
 		zzz_ooo_clone:select(2,column):fill(z_o)
-		--return zzz_ooo_clone
-		return zzz_ooo_clone:cuda()
+		return zzz_ooo_clone
+		--return zzz_ooo_clone:cuda()
 	end
 
 	ozz = fillzo(zzz,1,1)
@@ -89,11 +84,11 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 	ozo = fillzo(ooo,0,2)
 	ooz = fillzo(ooo,0,3)
 
-	xyz = newCoords1:clone()
+	local xyz = newCoords1:clone()
 	xyz:floor()
 	--print(xyz)
 
-	ijk = newCoords1 - xyz
+	local ijk = newCoords1 - xyz
 
 	xyz[xyz:lt(1)] = 1
 	xyz[{{},{1}}][xyz[{{},{1}}]:gt(imgOriginal:size()[1]-1)] = imgOriginal:size()[1]-1
@@ -115,7 +110,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 	i1,j1,k1 = i1j1k1[{{},{1}}], i1j1k1[{{},{2}}], i1j1k1[{{},{3}}] 
 
 	-- Functions to return f(x,y,z) given xyz
-	function flattenIndices(sp_indices, shape)
+	local function flattenIndices(sp_indices, shape)
 		sp_indices = sp_indices - 1
 		n_elem, n_dim = sp_indices:size(1), sp_indices:size(2)
 		flat_ind = torch.LongTensor(n_elem):fill(1)
@@ -128,40 +123,21 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 		return flat_ind
 	end
 
-	function getElements(tensor, sp_indices)
+	local function getElements(tensor, sp_indices)
 		sp_indices = sp_indices:long()
 		flat_indices = flattenIndices(sp_indices, tensor:size()) 
 		flat_tensor = tensor:view(-1)
 		return flat_tensor:index(1, flat_indices)
 	end
 
-	fxyz = getElements(imgOriginal:double(),xyz:double()):cuda()
-	fx1yz = getElements(imgOriginal:double(),x1yz:double()):cuda()
-	fxy1z = getElements(imgOriginal:double(),xy1z:double()):cuda()
-	fxyz1 = getElements(imgOriginal:double(),xyz1:double()):cuda()
-	fx1y1z = getElements(imgOriginal:double(),x1y1z:double()):cuda()
-	fx1yz1 = getElements(imgOriginal:double(),x1yz1:double()):cuda()
-	fxy1z1 = getElements(imgOriginal:double(),xy1z1:double()):cuda()
-	fx1y1z1 = getElements(imgOriginal:double(),x1y1z1:double()):cuda()
-
-	--[[
-	function getElements2(img,indicies)
-		fX = torch.Tensor(totSize):cuda()
-		for i=1,totSize do
-			coord = indicies[i]
-		end
-	end
-
-	fxyz = getElements2(imgOriginal,xyz)
-	fx1yz = getElements2(imgOriginal,x1yz)
-	fxy1z = getElements2(imgOriginal,xy1z)
-	fxyz1 = getElements2(imgOriginal,xyz1)
-	fx1y1z = getElements2(imgOriginal,x1y1z)
-	fx1yz1 = getElements2(imgOriginal,x1yz1)
-	fxy1z1 = getElements2(imgOriginal,xy1z1)
-	fx1y1z1 = getElements2(imgOriginal,x1y1z1)
-	]]--
-
+	fxyz = getElements(imgOriginal,xyz)
+	fx1yz = getElements(imgOriginal,x1yz)
+	fxy1z = getElements(imgOriginal,xy1z)
+	fxyz1 = getElements(imgOriginal,xyz1)
+	fx1y1z = getElements(imgOriginal,x1y1z)
+	fx1yz1 = getElements(imgOriginal,x1yz1)
+	fxy1z1 = getElements(imgOriginal,xy1z1)
+	fx1y1z1 = getElements(imgOriginal,x1y1z1)
 
 	function imgInterpolate()  
 		Wfxyz =	  torch.cmul(i1,j1):cmul(k1)
@@ -180,13 +156,14 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 		return weightedSum
 	end
 
-
-	imgInterpolate = imgInterpolate():reshape(xSize,ySize,zSize)
+	--imgSub = imgOriginal:sub(imgObject.z-sliceSize+1,imgObject.z+sliceSize-1,imgObject.y -sliceSize+1,				imgObject.y + sliceSize-1, imgObject.x - sliceSize+1, imgObject.x + sliceSize-1)
+	local imgInterpolate = imgInterpolate():reshape(xSize,ySize,zSize)
 	return imgInterpolate
 end
 
 
 -- Display Image
+--[[
 function displayExample()
 
 	--Initialize displays
@@ -222,18 +199,20 @@ function displayExample()
 
 end 
 
+
 --Example
-function eg(anglemax)
+function eg3d()
 
 	for j=1,1 do
 		--observationNumber = torch.random(nobs)
 		observationNumber = 11106 
 		obs = Candidate:new(observationNumber)
 			       --rotation3d(imgobject, anglemax, slicesize,clipmin,clipmax)
-		imginterpolate = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax)
+		imgInterpolated = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax)
 		--image.display(imginterpolate[32])
 	end
 end
 
+]]--
 
 

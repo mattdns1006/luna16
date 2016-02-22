@@ -2,14 +2,13 @@ dofile("readCsv.lua")
 require "cunn"
 require "cutorch"
 
-
 candidateCsv = csvToTable("CSVFILES/candidatesCleaned.csv")
 
 Candidate = {}
 Candidate.__index = Candidate
 
-function Candidate:new(obs)
-	local fileInfo = candidateCsv[obs]:split(",")	
+function Candidate:new(csv,obs)
+	local fileInfo = csv[obs]:split(",")	
 	return setmetatable({ AllFileInfo = fileInfo,
 			      imgPath = fileInfo[1],
 			      Class = fileInfo[2],
@@ -32,9 +31,6 @@ function Candidate:loadImg(clipMin,clipMax,sliceSize)
 	torch.setdefaulttensortype("torch.DoubleTensor")
 
 	img = img:view(-1,512,512)
-
-	img = img:cuda()
-	--
 
 	-- Clip image to keep only ROI
 	img[img:lt(clipMin)] = clipMin
@@ -62,9 +58,3 @@ function Candidate:loadImg(clipMin,clipMax,sliceSize)
 	return img
 end
 
---[[
-eg = Candidate:new(30)
-clipMin, clipMax = -100,100
-sliceSize = 64
-img = eg:loadImg(clipMin,clipMax,sliceSize)
-]]--
