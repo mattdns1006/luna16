@@ -3,6 +3,7 @@ require "cunn"
 require "cutorch"
 require "image"
 
+
 function rotationMatrix(angle)
 	--Returns a 3D rotation matrix
 	local rotMatrix = torch.Tensor{1,0,0,0,0,torch.cos(angle),-torch.sin(angle),0,0,torch.sin(angle),torch.cos(angle),0}:reshape(3,4)
@@ -43,7 +44,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 	--rotMatrix = rotationMatrix(angle):cuda()
 
 	-- Rotation
-	local newCoords = coordsT*rotMatrix:transpose(1,2)
+local newCoords = coordsT*rotMatrix:transpose(1,2)
 
 	--SPacing
 	local spacing  = torch.diag(torch.Tensor{1/imgObject.zSpacing, 1/imgObject.ySpacing, 1/imgObject.xSpacing})
@@ -109,7 +110,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 	i1,j1,k1 = i1j1k1[{{},{1}}], i1j1k1[{{},{2}}], i1j1k1[{{},{3}}] 
 
 	-- Functions to return f(x,y,z) given xyz
-	local function flattenIndices(sp_indices, shape)
+	function flattenIndices(sp_indices, shape)
 		sp_indices = sp_indices - 1
 		n_elem, n_dim = sp_indices:size(1), sp_indices:size(2)
 		flat_ind = torch.LongTensor(n_elem):fill(1)
@@ -122,7 +123,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 		return flat_ind
 	end
 
-	local function getElements(tensor, sp_indices)
+	function getElements(tensor, sp_indices)
 		sp_indices = sp_indices:long()
 		flat_indices = flattenIndices(sp_indices, tensor:size()) 
 		flat_tensor = tensor:view(-1)
@@ -155,66 +156,60 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 		return weightedSum
 	end
 
-	--imgSub = imgOriginal:sub(imgObject.z-sliceSize+1,imgObject.z+sliceSize-1,imgObject.y -sliceSize+1,				imgObject.y + sliceSize-1, imgObject.x - sliceSize+1, imgObject.x + sliceSize-1)
+	local sliceSize_2 = torch.floor(sliceSize/2)
+	local imgSub = imgOriginal:sub(imgObject.z - sliceSize_2, imgObject.z + sliceSize_2-1,
+				 imgObject.y - sliceSize_2, imgObject.y + sliceSize_2-1, 
+				 imgObject.x - sliceSize_2, imgObject.x + sliceSize_2-1)
+
 	local imgInterpolate = imgInterpolate():reshape(xSize,ySize,zSize)
-	return imgInterpolate
+	return imgInterpolate, imgSub
 end
 
---[[
--- Display Image
-function displayExample()
+--Example
+function eg3d(display)
 
-	nObs = table.getn(candidateCsv)
-	trainProportion = 0.8
-	angleMax = 0.3
-	sliceSize = 64 
+	dofile("readCsv.lua")
+	dofile("imageCandidates.lua")
+
+	angleMax = 0.8
+	sliceSize = 96 
 	clipMin = -1014 -- clip sizes determined from ipython nb
 	clipMax = 500
+
 	--Initialize displays
-	if displayTrue==nil then
+	if displayTrue==nil and display==1 then
+		print("Initializing displays ==>")
 		zoom = 0.65
 		init = image.lena()
-		imgOrig = image.display{image=init, zoom=zoom, offscreen=false}
-		imgDis = image.display{image=init, zoom=zoom, offscreen=false}
+		imgOrigX = image.display{image=init, zoom=zoom, offscreen=false}
+		imgSubZ = image.display{image=init, zoom=zoom, offscreen=false}
+		imgSubY = image.display{image=init, zoom=zoom, offscreen=false}
+		imgSubX = image.display{image=init, zoom=zoom, offscreen=false}
 		imgInterpolateDisZ = image.display{image=init, zoom=zoom, offscreen=false}
-		--imgInterpolateDisY = image.display{image=init, zoom=zoom, offscreen=false}
-		--imgInterpolateDisX = image.display{image=init, zoom=zoom, offscreen=false}
+		imgInterpolateDisY = image.display{image=init, zoom=zoom, offscreen=false}
+		imgInterpolateDisX = image.display{image=init, zoom=zoom, offscreen=false}
 		displayTrue = "Display initialized"
 	end
 
 
-
-	for j=1,50 do
-		observationnumber = torch.random(nObs)
-		obs = Candidate:new(observationnumber)
-
-		for i = 1,3 do
-			loadImgTimer = torch.Timer()
-			imginterpolate = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax)
-			print("Time elapsed for rotation of cube size = "..sliceSize .. " ==>  " .. loadImgTimer:time().real .. " seconds.")
-			--Display images in predefined windows
-			image.display{image = imgOriginal[obs.z], win = imgOrig}
-			image.display{image = imgOriginal:sub(obs.z+1,obs.z+1,obs.y-sliceSize/2,obs.y+sliceSize/2,obs.x-sliceSize/2,obs.x+sliceSize/2), win = imgDis}
-			image.display{image = imgInterpolate[sliceSize/2 ], win = imgInterpolateDisZ}
-			--image.display{image = imgInterpolate[{{},{slicesize/2}}]:reshape(slicesize,slicesize), win = imgInterpolateDisY}
-			--image.display{image = imgInterpolate[{{},{},{slicesize/2}}]:reshape(slicesize,slicesize), win = imgInterpolateDisX}
-		end
-	end
-
-end 
-
---Example
-function eg3d()
-
-	for j=1,1 do
+	for j=1,10000 do
 		--observationNumber = torch.random(nobs)
 		observationNumber = 11106 
-		obs = Candidate:new(observationNumber)
+		obs = Candidate:new(candidateCsv,observationNumber)
 			       --rotation3d(imgobject, anglemax, slicesize,clipmin,clipmax)
-		imgInterpolated = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax)
-		--image.display(imginterpolate[32])
+		imgInterpolated, imgSub = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax)
+		
+		image.display{image = imgOriginal[obs.z], win = imgOrigX}
+
+		image.display{image = imgSub[1+sliceSize/2], win = imgSubZ}
+		image.display{image = imgSub[{{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgSubY}
+		image.display{image = imgSub[{{},{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgSubX}
+
+		image.display{image = imgInterpolated[1+sliceSize/2], win = imgInterpolateDisZ}
+		image.display{image = imgInterpolated[{{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgInterpolateDisY}
+		image.display{image = imgInterpolated[{{},{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgInterpolateDisX}
 	end
 end
-]]--
+
 
 
