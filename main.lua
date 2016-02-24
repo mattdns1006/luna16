@@ -19,11 +19,11 @@ sliceSize = 64
 clipMin = -1014 -- clip sizes determined from ipython nb
 clipMax = 500
 nClasses = 2
-batchSize = 2 
+batchSize = 1
 
 -- Optimizer
 optimState = {
-	learningRate = 0.001,
+	learningRate = 0.0001,
 	beta1 = 0.9,
 	beta2 = 0.999,
 	epsilon = 1e-8
@@ -32,29 +32,30 @@ optimMethod = optim.adam
 
 -- Model
 model = models.model1()
-criterion = nn.MSECriterion()
+print("Model == >",model)
+--criterion = nn.MSECriterion()
+criterion = nn.BCECriterion()
 
 -- Add confusion matrix
 classes = {0,1}
-cm = optim.ConfusionMatrix(#classes,classes)
+cm = optim.ConfusionMatrix(classes)
 
 -- Load data
 --candidateCsv = csvToTable("CSVFILES/candidatesCleaned.csv")
-train = csvToTable("CSVFILES/candidatesTrain8.csv")
-test = csvToTable("CSVFILES/candidatesTest8.csv")
+train = csvToTable("CSVFILES/candidatesTrainBalanced8.csv")
+test = csvToTable("CSVFILES/candidatesTestBalanced8.csv")
 
 
 -- Function to get batches
 function getBatch(data,from,batchSize)
-	from = 1
 	if from + batchSize - 1  >= #data then to = #data else to = from + batchSize - 1 end -- check to see if at end of data
 	
 	local batch = shuffle.getBatch(data,from,to)
-	print(batch)
+	--print(batch)
 
 	-- For each image file in a batch. 1/ Load it 2/ Rotate it /3 Place it in batch tensor
-	local xBatchTensor = torch.Tensor(batchSize,1,sliceSize,sliceSize,sliceSize)
-	local yBatchTensor = torch.Tensor(batchSize,1)
+	local xBatchTensor = torch.Tensor(batchSize,1,sliceSize,sliceSize,sliceSize):cuda()
+	local yBatchTensor = torch.Tensor(batchSize,1):cuda()
 	for k,v in ipairs(batch) do 
 		obs = Candidate:new(batch,k)
 		x, xSub  = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax):reshape(1,sliceSize,sliceSize,sliceSize)
@@ -67,12 +68,6 @@ function getBatch(data,from,batchSize)
 	
 end
 	
--- Example
---[[
-xBatchTensor, yBatchTensor, batch  = getBatch(train,10,batchSize)
-xBatchTensor = xBatchTensor:cuda()
-yBatchTensor = yBatchTensor:cuda()
-]]--
 
 function training()
 
@@ -86,6 +81,7 @@ function training()
 	if model then parameters,gradParameters = model:getParameters() end
 
 	epoch = 1
+	batchLosses = {}
 	
 	for i = 1, #train, batchSize do 
 
@@ -108,15 +104,23 @@ function training()
 			dLoss_d0 = criterion:backward(predictions,targets)
 			model:backward(inputs, dLoss_d0)
 
-			cm:batchAdd(predictions,targets)
+			--cm:add(predictions,targets:reshape(batchSize))
 			--batchAcc = torch.cmul(predictions,targets):sum()/targets:size()[1]
-			print 'outputonfusionMatrix:__tostring__() test'
-			print(cm)
 			return loss, gradParameters
 
 		end
 
 		_, batchLoss = optimMethod(feval,parameters,optimState)
+		batchLosses[#batchLosses + 1] = batchLoss[1]
+		batchLossesTensor = torch.Tensor(batchLosses)
+		print("Overall mean ==> " .. batchLossesTensor:mean())
+
+		-- Moving average
+		ma = 5 
+		if batchLossesTensor:size()[1] > ma then 
+			print("Moving average of last "..ma.. " batches mean == > " .. batchLossesTensor[{{-ma,-1}}]:mean() )
+		end
+
 
 	end
 end

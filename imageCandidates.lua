@@ -47,11 +47,11 @@ function Candidate:loadImg(clipMin,clipMax,sliceSize)
 		if coord <= sliceSize/2 then 
 			
 			returnCoord =  sliceSize/2 + 1
-			print( "Coord " .. coord .. " is less than half slice size of .. " .. sliceSize/2 .. " changing to " .. returnCoord)
+			--print( "Coord " .. coord .. " is less than half slice size of .. " .. sliceSize/2 .. " changing to " .. returnCoord)
 
 		elseif sliceSize/2 >= (coordMax - coord) then 
 			returnCoord = (coordMax - sliceSize/2 - 1)
-			print ("Coord " .. coord .. " is greater than half slice size of .. " .. sliceSize/2 .. " changing to " .. returnCoord)
+			--print ("Coord " .. coord .. " is greater than half slice size of .. " .. sliceSize/2 .. " changing to " .. returnCoord)
 		end
 		return returnCoord
 	end
