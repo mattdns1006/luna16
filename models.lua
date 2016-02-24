@@ -16,7 +16,7 @@ function models.model1()
 	model = nn.Sequential()
 
 	layerNu = 2 
-	modelLayers.addBN(model, 1, 1)
+	--modelLayers.addBN(model, 1, 1)
 	for i = 1,4 do 
 
 		modelLayers.add3DConv(model, layerNu, nFilters, filterSizeConv, strideConv, paddingConv)

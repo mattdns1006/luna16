@@ -173,11 +173,14 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 	end
 
 	local sliceSize_2 = torch.floor(sliceSize/2)
+	--[[
 	local imgSub = imgOriginal:sub(imgObject.z - sliceSize_2, imgObject.z + sliceSize_2-1,
 				 imgObject.y - sliceSize_2, imgObject.y + sliceSize_2-1, 
 				 imgObject.x - sliceSize_2, imgObject.x + sliceSize_2-1)
+				 ]]--
 
 	local imgInterpolate = imgInterpolate():reshape(xSize,ySize,zSize)
+	imgInterpolate = imgInterpolate - imgInterpolate:mean() -- Remove mean
 	return imgInterpolate, imgSub
 end
 

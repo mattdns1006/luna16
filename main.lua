@@ -23,7 +23,7 @@ batchSize = 1
 
 -- Optimizer
 optimState = {
-	learningRate = 0.0001,
+	learningRate = 0.0000001,
 	beta1 = 0.9,
 	beta2 = 0.999,
 	epsilon = 1e-8
@@ -69,7 +69,14 @@ function getBatch(data,from,batchSize)
 end
 	
 
-function training()
+function training(display)
+
+	if displayTrue==nil and display==1 then
+		print("Initializing displays ==>")
+		zoom = 0.6
+		init = image.lena()
+		imgX = image.display{image=init, zoom=zoom, offscreen=false}
+	end
 
 	function CUDA()
 		model = model:cuda()
@@ -90,6 +97,12 @@ function training()
 		inputs, targets, batch  = getBatch(train,i,batchSize)
 		inputs = inputs:cuda()
 		targets = targets:cuda()
+			
+		if display == 1 then 
+			local obs =1 
+			local class = batch[obs]:split(",")[2]
+			image.display{image = inputs[{{obs},{},{sliceSize/2 +1}}]:reshape(sliceSize,sliceSize), win = imgX, legend = class}
+		end
 		
 		function feval(x)
 			if x~= parameters then
@@ -113,12 +126,12 @@ function training()
 		_, batchLoss = optimMethod(feval,parameters,optimState)
 		batchLosses[#batchLosses + 1] = batchLoss[1]
 		batchLossesTensor = torch.Tensor(batchLosses)
-		print("Overall mean ==> " .. batchLossesTensor:mean())
+		--print("Overall mean ==> " .. batchLossesTensor:mean())
 
 		-- Moving average
 		ma = 5 
 		if batchLossesTensor:size()[1] > ma then 
-			print("Moving average of last "..ma.. " batches mean == > " .. batchLossesTensor[{{-ma,-1}}]:mean() )
+			print("Moving average of last "..ma.. " batches ==> " .. batchLossesTensor[{{-ma,-1}}]:mean() )
 		end
 
 
