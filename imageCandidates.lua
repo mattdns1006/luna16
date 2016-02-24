@@ -44,11 +44,14 @@ function Candidate:loadImg(clipMin,clipMax,sliceSize)
 	-- Function to check if nodule coords are near edge
 	function checkCoords(coord, coordMax, sliceSize)
 		returnCoord = coord
-		if coord <= sliceSize then 
-			returnCoord =  sliceSize + 1
+		if coord <= sliceSize/2 then 
+			
+			returnCoord =  sliceSize/2 + 1
+			print( "Coord " .. coord .. " is less than half slice size of .. " .. sliceSize/2 .. " changing to " .. returnCoord)
 
-		elseif sliceSize >= (coordMax - coord) then 
-			returnCoord = (coordMax - sliceSize - 1)
+		elseif sliceSize/2 >= (coordMax - coord) then 
+			returnCoord = (coordMax - sliceSize/2 - 1)
+			print ("Coord " .. coord .. " is greater than half slice size of .. " .. sliceSize/2 .. " changing to " .. returnCoord)
 		end
 		return returnCoord
 	end

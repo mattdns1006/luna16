@@ -34,8 +34,9 @@ optimMethod = optim.adam
 model = models.model1()
 criterion = nn.MSECriterion()
 
--- CUDA
-
+-- Add confusion matrix
+classes = {0,1}
+cm = optim.ConfusionMatrix(#classes,classes)
 
 -- Load data
 --candidateCsv = csvToTable("CSVFILES/candidatesCleaned.csv")
@@ -90,9 +91,9 @@ function training()
 
 		xlua.progress(i,#train)
 
-		xBatchTensor, yBatchTensor, batch  = getBatch(train,i,batchSize)
-		xBatchTensor = xBatchTensor:cuda()
-		yBatchTensor = yBatchTensor:cuda()
+		inputs, targets, batch  = getBatch(train,i,batchSize)
+		inputs = inputs:cuda()
+		targets = targets:cuda()
 		
 		function feval(x)
 			if x~= parameters then
@@ -101,17 +102,16 @@ function training()
 
 			loss = 0
 
-			outputs = model:forward(xBatchTensor)
-			loss = criterion:forward(outputs,yBatchTensor)
+			predictions = model:forward(inputs)
+			loss = criterion:forward(predictions,targets)
 
-			dLoss_d0 = criterion:backward(outputs,yBatchTensor)
-			model:backward(xBatchTensor, dLoss_d0)
+			dLoss_d0 = criterion:backward(predictions,targets)
+			model:backward(inputs, dLoss_d0)
 
-			batchAcc = torch.cmul(outputs,yBatchTensor):sum()/yBatchTensor:size()[1]
-			
-			print(batchAcc)
-			print(loss)
-			print(outputs)
+			cm:batchAdd(predictions,targets)
+			--batchAcc = torch.cmul(predictions,targets):sum()/targets:size()[1]
+			print 'outputonfusionMatrix:__tostring__() test'
+			print(cm)
 			return loss, gradParameters
 
 		end
