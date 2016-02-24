@@ -2,7 +2,9 @@ dofile("readCsv.lua")
 require "cunn"
 require "cutorch"
 
-candidateCsv = csvToTable("CSVFILES/candidatesCleaned.csv")
+--candidateCsv = csvToTable("CSVFILES/candidatesCleaned.csv")
+--trainCSV = csvToTable("CSVFILES/CandidatesTrain8.csv")
+--trainCSV = csvToTable("CSVFILES/CandidatesTrain8.csv")
 
 Candidate = {}
 Candidate.__index = Candidate

@@ -29,7 +29,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 	--ones = torch.ones(totSize)
 
 	--coords = torch.cat({xx:reshape(totSize,1),yy:reshape(totSize,1),zz:reshape(totSize,1),ones:reshape(totSize,1)},2)
-	local coords = torch.cat({xx:reshape(totSize,1),yy:reshape(totSize,1),zz:reshape(totSize,1)},2)
+	coords = torch.cat({xx:reshape(totSize,1),yy:reshape(totSize,1),zz:reshape(totSize,1)},2)
 	--coords = coords:cuda()
 
 	-- Translate coords to be about the origin i.e. mean subtract
@@ -44,7 +44,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 	--rotMatrix = rotationMatrix(angle):cuda()
 
 	-- Rotation
-local newCoords = coordsT*rotMatrix:transpose(1,2)
+	local newCoords = coordsT*rotMatrix:transpose(1,2)
 
 	--SPacing
 	local spacing  = torch.diag(torch.Tensor{1/imgObject.zSpacing, 1/imgObject.ySpacing, 1/imgObject.xSpacing})
@@ -84,11 +84,11 @@ local newCoords = coordsT*rotMatrix:transpose(1,2)
 	ozo = fillzo(ooo,0,2)
 	ooz = fillzo(ooo,0,3)
 
-	local xyz = newCoords1:clone()
+	xyz = newCoords1:clone()
 	xyz:floor()
 	--print(xyz)
 
-	local ijk = newCoords1 - xyz
+	ijk = newCoords1 - xyz
 
 	xyz[xyz:lt(1)] = 1
 	xyz[{{},{1}}][xyz[{{},{1}}]:gt(imgOriginal:size()[1]-1)] = imgOriginal:size()[1]-1
@@ -105,6 +105,9 @@ local newCoords = coordsT*rotMatrix:transpose(1,2)
 	xy1z1 = xyz + zoo
 
 	-- Subtract the new coordinates from the 8 corners to get our distances ijk which are our weights
+	--ijk = ijk:cuda()
+	--ooo = ooo:cuda()
+	--
 	i,j,k = ijk[{{},{1}}], ijk[{{},{2}}], ijk[{{},{3}}]
 	i1j1k1 = ooo - ijk -- (1-i)(1-j)(1-k)
 	i1,j1,k1 = i1j1k1[{{},{1}}], i1j1k1[{{},{2}}], i1j1k1[{{},{3}}] 
@@ -139,6 +142,17 @@ local newCoords = coordsT*rotMatrix:transpose(1,2)
 	fxy1z1 = getElements(imgOriginal,xy1z1)
 	fx1y1z1 = getElements(imgOriginal,x1y1z1)
 
+	--[[
+	fxyz = getElements(imgOriginal,xyz):cuda()
+	fx1yz = getElements(imgOriginal,x1yz):cuda()
+	fxy1z = getElements(imgOriginal,xy1z):cuda()
+	fxyz1 = getElements(imgOriginal,xyz1):cuda()
+	fx1y1z = getElements(imgOriginal,x1y1z):cuda()
+	fx1yz1 = getElements(imgOriginal,x1yz1):cuda()
+	fxy1z1 = getElements(imgOriginal,xy1z1):cuda()
+	fx1y1z1 = getElements(imgOriginal,x1y1z1):cuda()
+	]]--
+
 	function imgInterpolate()  
 		Wfxyz =	  torch.cmul(i1,j1):cmul(k1)
 		Wfx1yz =  torch.cmul(i,j1):cmul(k1)
@@ -172,7 +186,7 @@ function eg3d(display)
 	dofile("imageCandidates.lua")
 
 	angleMax = 0.8
-	sliceSize = 96 
+	sliceSize = 3 
 	clipMin = -1014 -- clip sizes determined from ipython nb
 	clipMax = 500
 
@@ -192,22 +206,26 @@ function eg3d(display)
 	end
 
 
-	for j=1,10000 do
+	for j=1,1 do
 		--observationNumber = torch.random(nobs)
+		timer = torch.Timer()
 		observationNumber = 11106 
 		obs = Candidate:new(candidateCsv,observationNumber)
-			       --rotation3d(imgobject, anglemax, slicesize,clipmin,clipmax)
 		imgInterpolated, imgSub = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax)
+		print('Time elapsed for interpolation : ' .. timer:time().real .. ' seconds')	
+		timer:reset()
 		
-		image.display{image = imgOriginal[obs.z], win = imgOrigX}
+		if display == 1 then 
+			image.display{image = imgOriginal[obs.z], win = imgOrigX}
 
-		image.display{image = imgSub[1+sliceSize/2], win = imgSubZ}
-		image.display{image = imgSub[{{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgSubY}
-		image.display{image = imgSub[{{},{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgSubX}
+			image.display{image = imgSub[1+sliceSize/2], win = imgSubZ}
+			image.display{image = imgSub[{{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgSubY}
+			image.display{image = imgSub[{{},{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgSubX}
 
-		image.display{image = imgInterpolated[1+sliceSize/2], win = imgInterpolateDisZ}
-		image.display{image = imgInterpolated[{{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgInterpolateDisY}
-		image.display{image = imgInterpolated[{{},{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgInterpolateDisX}
+			image.display{image = imgInterpolated[1+sliceSize/2], win = imgInterpolateDisZ}
+			image.display{image = imgInterpolated[{{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgInterpolateDisY}
+			image.display{image = imgInterpolated[{{},{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgInterpolateDisX}
+		end
 	end
 end
 

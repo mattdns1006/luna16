@@ -19,6 +19,7 @@ end
 
 --Function to shuffle array 
 function shuffle.shuffle(array)
+    math.randomseed(os.time())
 
     for i = 1, #array*2 do
 	 local a = math.random(#array)

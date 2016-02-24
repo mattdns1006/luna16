@@ -5,10 +5,10 @@ modelLayers = {}
 
 
 --   VolumetricConvolution(nInputPlane, nOutputPlane, kT, kW, kH [, dT, dW, dH, padT, padW, padH])
-function modelLayers.add3dconv(model,layerNu,nfilters,filtersize,stride,padding)
+function modelLayers.add3DConv(model,layerNu,nfilters,filterSize,stride,padding)
 	model:add(nn.VolumetricConvolution(
 					  nFilters[layerNu-1],
-					  nFilters[layerNu-1],
+					  nFilters[layerNu],
 					  filterSize[layerNu],
 					  filterSize[layerNu],
 					  filterSize[layerNu],
@@ -36,7 +36,7 @@ function modelLayers.addMP(model,layerNu,size,stride,padding)
 end
 					 
 function modelLayers.addBN(model,layerNu,nfilters)
-	model:add(nn.VolumetricBatchNormalization(nFilters[layer]))
+	model:add(nn.VolumetricBatchNormalization(nFilters[layerNu]))
 end
 
 return modelLayers
