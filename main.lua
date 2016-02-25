@@ -14,8 +14,8 @@ shuffle = require "shuffle"
 ----------------------------------------------------------------------------------------------------
 -- GLobal vars
 trainProportion = 0.8
-angleMax = 0.3
-sliceSize = 64 
+angleMax = 0.7
+sliceSize = 48 
 clipMin = -1014 -- clip sizes determined from ipython nb
 clipMax = 500
 nClasses = 2
@@ -23,7 +23,7 @@ batchSize = 1
 
 -- Optimizer
 optimState = {
-	learningRate = 0.0000001,
+	learningRate = 0.0001,
 	beta1 = 0.9,
 	beta2 = 0.999,
 	epsilon = 1e-8
@@ -31,7 +31,7 @@ optimState = {
 optimMethod = optim.adam
 
 -- Model
-model = models.model1()
+model = models.model2()
 print("Model == >",model)
 --criterion = nn.MSECriterion()
 criterion = nn.BCECriterion()
@@ -58,7 +58,9 @@ function getBatch(data,from,batchSize)
 	local yBatchTensor = torch.Tensor(batchSize,1):cuda()
 	for k,v in ipairs(batch) do 
 		obs = Candidate:new(batch,k)
-		x, xSub  = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax):reshape(1,sliceSize,sliceSize,sliceSize)
+		-- Rotate depends on first epoch i.e if we are on the first epoch we do not rotate to speed things up
+		--if epoch == 1 then rotate = 0 else rotate = 1 end
+		x = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax,1):reshape(1,sliceSize,sliceSize,sliceSize)
 		y = obs.Class
 		xBatchTensor[k] = x 
 		yBatchTensor[k] = y 
@@ -76,6 +78,7 @@ function training(display)
 		zoom = 0.6
 		init = image.lena()
 		imgX = image.display{image=init, zoom=zoom, offscreen=false}
+		imgOrigX = image.display{image=init, zoom=zoom, offscreen=false}
 	end
 
 	function CUDA()
@@ -87,54 +90,63 @@ function training(display)
 
 	if model then parameters,gradParameters = model:getParameters() end
 
-	epoch = 1
-	batchLosses = {}
-	
-	for i = 1, #train, batchSize do 
+	while true do
 
-		xlua.progress(i,#train)
-
-		inputs, targets, batch  = getBatch(train,i,batchSize)
-		inputs = inputs:cuda()
-		targets = targets:cuda()
-			
-		if display == 1 then 
-			local obs =1 
-			local class = batch[obs]:split(",")[2]
-			image.display{image = inputs[{{obs},{},{sliceSize/2 +1}}]:reshape(sliceSize,sliceSize), win = imgX, legend = class}
-		end
+		epoch = 1
+		batchLosses = {}
 		
-		function feval(x)
-			if x~= parameters then
-				parameters:copy(x)
+		for i = 1, #train, batchSize do 
+
+			xlua.progress(i,#train)
+
+			inputs, targets, batch  = getBatch(train,i,batchSize)
+			inputs = inputs:cuda()
+			targets = targets:cuda()
+				
+			if display == 1 then 
+				local idx =1 
+				local class = batch[idx]:split(",")[2]
+				image.display{image = inputs[{{idx},{},{sliceSize/2 +1}}]:reshape(sliceSize,sliceSize), win = imgX, legend = class}
+				imgSub  = imgOriginal:sub(obs.z-sliceSize/2 +1 , obs.z+sliceSize/2 , obs.y-sliceSize/2+1, obs.y+sliceSize/2, obs.x - sliceSize/2 + 1, obs.x +sliceSize/2)
+				image.display{image = imgSub[sliceSize/2]:reshape(sliceSize,sliceSize), win = imgOrigX, legend = class}
+			end
+			
+			function feval(x)
+				if x~= parameters then
+					parameters:copy(x)
+				end
+
+				gradParameters:zero()
+				loss = 0
+
+				predictions = model:forward(inputs)
+				loss = criterion:forward(predictions,targets)
+
+				dLoss_d0 = criterion:backward(predictions,targets)
+				model:backward(inputs, dLoss_d0)
+
+				--cm:add(predictions,targets:reshape(batchSize))
+				--batchAcc = torch.cmul(predictions,targets):sum()/targets:size()[1]
+				return loss, gradParameters
+
 			end
 
-			loss = 0
+			_, batchLoss = optimMethod(feval,parameters,optimState)
+			batchLosses[#batchLosses + 1] = batchLoss[1]
+			batchLossesTensor = torch.Tensor(batchLosses)
+			--print("Overall mean ==> " .. batchLossesTensor:mean())
 
-			predictions = model:forward(inputs)
-			loss = criterion:forward(predictions,targets)
+			-- Moving average
+			ma = 5 
+			if batchLossesTensor:size()[1] > ma then 
+				print("Moving average of last "..ma.. " batches ==> " .. batchLossesTensor[{{-ma,-1}}]:mean() )
+			end
 
-			dLoss_d0 = criterion:backward(predictions,targets)
-			model:backward(inputs, dLoss_d0)
-
-			--cm:add(predictions,targets:reshape(batchSize))
-			--batchAcc = torch.cmul(predictions,targets):sum()/targets:size()[1]
-			return loss, gradParameters
 
 		end
 
-		_, batchLoss = optimMethod(feval,parameters,optimState)
-		batchLosses[#batchLosses + 1] = batchLoss[1]
-		batchLossesTensor = torch.Tensor(batchLosses)
-		--print("Overall mean ==> " .. batchLossesTensor:mean())
-
-		-- Moving average
-		ma = 5 
-		if batchLossesTensor:size()[1] > ma then 
-			print("Moving average of last "..ma.. " batches ==> " .. batchLossesTensor[{{-ma,-1}}]:mean() )
-		end
-
-
+		epoch = epoch + 1
+		print("On epoch # .. " .. epoch)
 	end
 end
 

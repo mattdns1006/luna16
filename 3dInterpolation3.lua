@@ -11,13 +11,15 @@ function rotationMatrix(angle)
 	return rotMatrix
 end
 
-function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
+function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 
 	imgOriginal = imgObject:loadImg(clipMin,clipMax,sliceSize)
+	
+	sliceSize_2 = torch.floor(sliceSize/2)
+
 
 	intervalTimer = torch.Timer()
 
-	--torch.setdefaulttens
 	local xSize,ySize,zSize = sliceSize, sliceSize, sliceSize -- Making a cube hence all dimensions are the same (possibly change)
 	local totSize = xSize*ySize*zSize
 
@@ -131,8 +133,10 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 		sp_indices = sp_indices:long()
 		flat_indices = flattenIndices(sp_indices, tensor:size()) 
 		flat_tensor = tensor:view(-1):double()
+		--flat_tensor = tensor:view(-1)
 		return flat_tensor:index(1, flat_indices)
 	end
+
 
 	--[[
 	fxyz = getElements(imgOriginal,xyz)
@@ -155,6 +159,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 	fxy1z1 = getElements(imgOriginal,xy1z1):cuda()
 	fx1y1z1 = getElements(imgOriginal,x1y1z1):cuda()
 
+
 	function imgInterpolate()  
 		Wfxyz =	  torch.cmul(i1,j1):cmul(k1)
 		Wfx1yz =  torch.cmul(i,j1):cmul(k1)
@@ -172,19 +177,24 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax)
 		return weightedSum
 	end
 
-	local sliceSize_2 = torch.floor(sliceSize/2)
-	--[[
-	local imgSub = imgOriginal:sub(imgObject.z - sliceSize_2, imgObject.z + sliceSize_2-1,
-				 imgObject.y - sliceSize_2, imgObject.y + sliceSize_2-1, 
-				 imgObject.x - sliceSize_2, imgObject.x + sliceSize_2-1)
-				 ]]--
 
-	local imgInterpolate = imgInterpolate():reshape(xSize,ySize,zSize)
-	imgInterpolate = imgInterpolate - imgInterpolate:mean() -- Remove mean
-	return imgInterpolate, imgSub
+	imgInterpolate = imgInterpolate():reshape(xSize,ySize,zSize)
+
+	--[[
+	-- Else just return image localized at original point to save time
+	imgInterpolate = imgOriginal:sub(imgObject.z - sliceSize_2, imgObject.z + sliceSize_2-1,
+			 imgObject.y - sliceSize_2, imgObject.y + sliceSize_2-1, 
+			 imgObject.x - sliceSize_2, imgObject.x + sliceSize_2-1)
+			 ]]--
+
+	-- Normalize between -1 +1 
+	imgInterpolate = (imgInterpolate - imgInterpolate:min())/(imgInterpolate:max()-imgInterpolate:min())*2 -1
+
+	return imgInterpolate
 end
 
 --Example
+--[[
 function eg3d(display)
 
 	dofile("readCsv.lua")
@@ -238,6 +248,7 @@ function eg3d(display)
 		end
 	end
 end
+]]--
 
 
 

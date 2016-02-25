@@ -26,7 +26,7 @@ end
 function Candidate:loadImg(clipMin,clipMax,sliceSize)
 
 	--torch.setdefaulttensortype("torch.ShortTensor")
-	local img = torch.ShortStorage(self.imgPath)
+	img = torch.ShortStorage(self.imgPath)
 
 	--img = torch.Tensor(img):double()
 	img = torch.ShortTensor(img):double()
@@ -61,5 +61,6 @@ function Candidate:loadImg(clipMin,clipMax,sliceSize)
 	self.x = checkCoords(self.x,img:size()[3],sliceSize)
 
 	return img
+
 end
 
