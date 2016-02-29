@@ -17,7 +17,7 @@ function models.model1()
 	model = nn.Sequential()
 
 	layerNu = 2 
-	--modelLayers.addBN(model, 1, 1)
+	modelLayers.addBN(model, 1, 1)
 	for i = 1,4 do 
 
 		modelLayers.add3DConv(model, layerNu, nFilters, filterSizeConv, strideConv, paddingConv)
@@ -26,7 +26,7 @@ function models.model1()
 		--modelLayers.addBN(model, layerNu, nFilters)
 		layerNu = layerNu + 1
 	end
-	lastLayerNeurons = 32*4*5*5*5
+	lastLayerNeurons = 128*3*3*3 
 	model:add(nn.View(lastLayerNeurons))
 	model:add(nn.Linear(lastLayerNeurons,1))
 	model:add(nn.Sigmoid())

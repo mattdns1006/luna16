@@ -16,32 +16,29 @@ shuffle = require "shuffle"
 
 cmd = torch.CmdLine()
 cmd:text()
-cmd:text("Main file for training")
+cmd:text()
 cmd:text('Options')
-cmd:option('-lr',0.001,'Learning rate')
+cmd:option('-train',0,'Train straight away')
+cmd:option('-lr',0.000000001,'Learning rate')
 cmd:option('-momentum',0.95,'Momentum')
-cmd:option('-batchSize',1,'batchSize')
+cmd:option('-batchSize',4,'batchSize')
 cmd:option('-cuda',1,'CUDA')
+cmd:option('-sliceSize',64,"Size of cube around nodule")
 cmd:option('-angleMax',0.2,"Absolute maximum angle for rotating image")
-cmd:option('-clipMin',-1014,'Clip image below this value to this value')
+cmd:option('-clipMin',-1000,'Clip image below this value to this value')
 cmd:option('-clipMax',500,'Clip image above this value to this value')
 cmd:option('-angleMax',0.2,"Absolute maximum angle for rotating image")
 cmd:option('-display',0,"Display images/plots") 
 cmd:option('-useThreads',1,"Use threads or not") 
+cmd:text()
 params = cmd:parse(arg)
 params.rundir = cmd:string('experiment', params, {dir=true})
+paths.mkdir(params.rundir)
+
 
 angleMax = params.angleMax
-params.sliceSize = 96 
 
 -- Optimizer
-optimState = {
-	learningRate = params.lr,
-	beta1 = 0.9,
-	beta2 = 0.999,
-	epsilon = 1e-8
-}
-optimMethod = optim.sgd
 --[[
 optimState = {
 	learningRate = params.lr,
@@ -49,15 +46,24 @@ optimState = {
 	beta2 = 0.999,
 	epsilon = 1e-8
 }
-optimMethod = optim.adam
+optimMethod = optim.sgd
 ]]--
+optimState = {
+	learningRate = params.lr,
+	beta1 = 0.9,
+	beta2 = 0.999,
+	epsilon = 1e-8
+}
+optimMethod = optim.adam
+
 
 -- Model
 model = models.model1()
 --model = torch.load("models/model1.model")
 print("Model == >",model)
---criterion = nn.MSECriterion()
-criterion = nn.BCECriterion()
+print("==> Parameters",params)
+criterion = nn.MSECriterion()
+--criterion = nn.BCECriterion()
 
 if params.cuda == 1 then
 	model = model:cuda()
@@ -67,21 +73,15 @@ end
 
 -- Add confusion matrix -- TO DO
 classes = {"0","1"}
-cm = optim.ConfusionMatrix(classes)
+cmTrain = optim.ConfusionMatrix(classes)
 
 -- Load data
 --candidateCsv = csvToTable("CSVFILES/candidatesCleaned.csv")
 train = csvToTable("CSVFILES/candidatesTrainBalanced8.csv")
 test = csvToTable("CSVFILES/candidatesTestBalanced8.csv")
 
--- Example
---[[
-obs = Candidate:new(train,1)
-x = rotation3d(obs, angleMax, params.sliceSize, params.clipMin, params.clipMax,1):reshape(1,params.sliceSize,params.sliceSize,params.sliceSize)
-]]--
-
 trainingBatchSize= params.batchSize
-queueLength= 30
+queueLength= 25 
 g_mutex=threads.Mutex()
 g_tensorsForQueue={}
 g_MasterTensor = torch.LongTensor(3*queueLength) --first 2 begin and end of queue
@@ -123,8 +123,8 @@ task = string.format([[
 			g_mutex:unlock()
 
 			if not ok then	
-				print("full")
-				sys.sleep(0.5)
+				--print("full")
+				sys.sleep(0.1)
 			end
 		end	
 		local ourX = torch.LongTensor(torch.LongStorage(trainingBatchSize*s*s*s,g_MasterTensor[3*index-1])):resize(trainingBatchSize,1,s,s,s)
@@ -136,8 +136,7 @@ task = string.format([[
 	end
 ]],g_mutex:id(),queueLength,tonumber(torch.data(g_MasterTensor,1)),trainingBatchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax)
 if params.useThreads then 
-	threads.Thread(task)
-	threads.Thread(task)
+	print("==> Multithreading inputs")
 	threads.Thread(task)
 	threads.Thread(task)
 	threads.Thread(task)
@@ -223,12 +222,10 @@ function training()
 			end
 				
 			function feval(x)
-				if x~= parameters then
-					parameters:copy(x)
-				end
+				if x~= parameters then parameters:copy(x) end
 
 				gradParameters:zero()
-				loss = 0
+
 				predictions = model:forward(inputs)
 				loss = criterion:forward(predictions,targets)
 
@@ -238,11 +235,14 @@ function training()
 				return loss, gradParameters
 
 			end
-
+			-- Possibly improve this to take batch with large error more frequently
+			--for i=1,2 do
 			_, batchLoss = optimMethod(feval,parameters,optimState)
-			batchLosses[#batchLosses + 1] = batchLoss[1]
-			batchLossesT = torch.Tensor(batchLosses)
+			batchLosses[#batchLosses + 1] = batchLoss[1]/params.batchSize
+			--end
+			local batchLossesT = torch.Tensor(batchLosses)
 			local t = torch.range(1,batchLossesT:size()[1])
+
 			--[[
 			gnuplot.figure(1)
 			--gnuplot.plot({"Train loss",t,batchLossesT})
@@ -250,15 +250,14 @@ function training()
 			--gnuplot.hist(inputs[1])
 			--gnuplot.hist(parameters)
 			]]--
-			
 
 			-- Moving average
 			ma = 5 
 			if batchLossesT:size()[1] > ma then print("Moving average of last "..ma.. " batches ==> " .. batchLossesT[{{-ma,-1}}]:mean()) end
 
 			if params.display == 1 and displayTrue ~= nil then 
-				local idx = params.batchSize
-				local class = batch[idx]:split(",")[2]
+				local idx = 1 
+				local class = "Class " .. targets[1][1]
 
 				-- Display rotated images
 				image.display{image = inputs[{{idx},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgZ, legend = class}
@@ -284,6 +283,9 @@ function training()
 	end
 end
 
+if params.train == 1 then
+	training()
+end
 
 
 

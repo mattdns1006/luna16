@@ -26,21 +26,12 @@ end
 
 function Candidate:loadImg(clipMin,clipMax,sliceSize)
 
-	--torch.setdefaulttensortype("torch.ShortTensor")
 	img = torch.ShortStorage(self.imgPath)
-
-	--img = torch.Tensor(img):double()
 	img = torch.ShortTensor(img):double()
-	--torch.setdefaulttensortype("torch.DoubleTensor")
-
 	img = img:view(-1,512,512)
 
 	-- Clip image to keep only ROI
-	img[img:lt(clipMin)] = clipMin
-	img[img:gt(clipMax)] = clipMax
-
-	-- Remove mean
-	--img = img - img:mean()
+	img:clamp(clipMin,clipMax)
 
 	-- Function to check if nodule coords are near edge
 	function checkCoords(coord, coordMax, sliceSize)
