@@ -19,9 +19,10 @@ function getBatch(data,batchSize,xBatchTensor,yBatchTensor,sliceSize,clipMin,cli
 		x = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax,1):reshape(1,sliceSize,sliceSize,sliceSize)
 		y = obs.Class
 		xBatchTensor[k] = x 
-
 		yBatchTensor[k] = y 
 	end
+
+	collectgarbage()
 
 	--return xBatchTensor, yBatchTensor, batch
 end

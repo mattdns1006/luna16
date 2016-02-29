@@ -8,6 +8,7 @@ require "gnuplot"
 threads = require "threads"
 dofile("imageCandidates.lua")
 dofile("3dInterpolation3.lua")
+dofile("getBatch.lua")
 models = require "models"
 shuffle = require "shuffle"
 
@@ -19,13 +20,14 @@ cmd:text("Main file for training")
 cmd:text('Options')
 cmd:option('-lr',0.001,'Learning rate')
 cmd:option('-momentum',0.95,'Momentum')
-cmd:option('-batchSize',3,'batchSize')
+cmd:option('-batchSize',1,'batchSize')
 cmd:option('-cuda',1,'CUDA')
 cmd:option('-angleMax',0.2,"Absolute maximum angle for rotating image")
 cmd:option('-clipMin',-1014,'Clip image below this value to this value')
 cmd:option('-clipMax',500,'Clip image above this value to this value')
 cmd:option('-angleMax',0.2,"Absolute maximum angle for rotating image")
 cmd:option('-display',0,"Display images/plots") 
+cmd:option('-useThreads',1,"Use threads or not") 
 params = cmd:parse(arg)
 params.rundir = cmd:string('experiment', params, {dir=true})
 
@@ -78,8 +80,8 @@ obs = Candidate:new(train,1)
 x = rotation3d(obs, angleMax, params.sliceSize, params.clipMin, params.clipMax,1):reshape(1,params.sliceSize,params.sliceSize,params.sliceSize)
 ]]--
 
-trainingBatchSize=1
-queueLength=8
+trainingBatchSize= params.batchSize
+queueLength= 30
 g_mutex=threads.Mutex()
 g_tensorsForQueue={}
 g_MasterTensor = torch.LongTensor(3*queueLength) --first 2 begin and end of queue
@@ -133,10 +135,17 @@ task = string.format([[
 		g_mutex:unlock()
 	end
 ]],g_mutex:id(),queueLength,tonumber(torch.data(g_MasterTensor,1)),trainingBatchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax)
-threads.Thread(task)
-threads.Thread(task)
-threads.Thread(task)
-threads.Thread(task)
+if params.useThreads then 
+	threads.Thread(task)
+	threads.Thread(task)
+	threads.Thread(task)
+	threads.Thread(task)
+	threads.Thread(task)
+	threads.Thread(task)
+	threads.Thread(task)
+	threads.Thread(task)
+end
+
 -- Batch example
 --x,y,batch = getBatch(train,5)
 
@@ -198,8 +207,16 @@ function training()
 		for i = 1, #train, params.batchSize do 
 
 			xlua.progress(i,#train)
+			if not params.useThreads then 
+				local xBatchTensor = torch.Tensor(params.batchSize,1,params.sliceSize,params.sliceSize,params.sliceSize)
+				local yBatchTensor = torch.Tensor(params.batchSize,1)
 
-			inputs, targets = retrieveBatch()
+				getBatch(train,params.batchSize,xBatchTensor,yBatchTensor,params.sliceSize,params.clipMin,params.clipMax,params.angleMax)
+				inputs, targets = xBatchTensor, yBatchTensor
+			else 
+				inputs, targets = retrieveBatch()
+			end 
+
 			if params.cuda == 1 then
 				inputs = inputs:cuda()
 				targets = targets:cuda()
@@ -263,6 +280,7 @@ function training()
 
 		epoch = epoch + 1
 		print("On epoch # .. " .. epoch)
+		collectgarbage()
 	end
 end
 

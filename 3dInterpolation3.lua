@@ -1,4 +1,8 @@
+dofile("imageCandidates.lua")
+require "image"
+require "torch"
 
+--dofile("3dInterpolation3.lua")
 function rotationMatrix(angle)
 	--Returns a 3D rotation matrix
 	local rotMatrix = torch.Tensor{1,0,0,0,0,torch.cos(angle),-torch.sin(angle),0,0,torch.sin(angle),torch.cos(angle),0}:reshape(3,4)
@@ -8,7 +12,9 @@ end
 
 function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 
+	timeToLoad = torch.Timer()
 	imgOriginal = imgObject:loadImg(clipMin,clipMax,sliceSize)
+	--		print("Time to load".. timeToLoad:time().real)
 	
 	sliceSize_2 = torch.floor(sliceSize/2)
 	intervalTimer = torch.Timer()
@@ -168,8 +174,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 	imgInterpolate = imgInterpolate():reshape(xSize,ySize,zSize)
 
 	--[[
-	-- Else just return image localized at original point to save time
-	imgInterpolate = imgOriginal:sub(imgObject.z - sliceSize_2, imgObject.z + sliceSize_2-1,
+	imgSub = imgOriginal:sub(imgObject.z - sliceSize_2, imgObject.z + sliceSize_2-1,
 			 imgObject.y - sliceSize_2, imgObject.y + sliceSize_2-1, 
 			 imgObject.x - sliceSize_2, imgObject.x + sliceSize_2-1)
 			 ]]--
@@ -182,7 +187,6 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 end
 
 --Example
---[[
 function eg3d(display)
 
 	dofile("readCsv.lua")
@@ -190,7 +194,7 @@ function eg3d(display)
 	csv = csvToTable("CSVFILES/candidatesClass1.csv")
 
 	angleMax = 0.8
-	sliceSize = 64 
+	sliceSize = 96 
 	clipMin = -1014 -- clip sizes determined from ipython nb
 	clipMax = 500
 
@@ -200,9 +204,11 @@ function eg3d(display)
 		zoom = 0.5
 		init = image.lena()
 		imgOrigX = image.display{image=init, zoom=zoom, offscreen=false}
+		--[[
 		imgSubZ = image.display{image=init, zoom=zoom, offscreen=false}
 		imgSubY = image.display{image=init, zoom=zoom, offscreen=false}
 		imgSubX = image.display{image=init, zoom=zoom, offscreen=false}
+		]]--
 		imgInterpolateDisZ = image.display{image=init, zoom=zoom, offscreen=false}
 		imgInterpolateDisY = image.display{image=init, zoom=zoom, offscreen=false}
 		imgInterpolateDisX = image.display{image=init, zoom=zoom, offscreen=false}
@@ -215,6 +221,7 @@ function eg3d(display)
 		timer = torch.Timer()
 		observationNumber = torch.random(#csv)
 		obs = Candidate:new(csv,observationNumber)
+		print(obs)
 
 		for j = 1,10 do 
 			--observationNumber = torch.random(nobs)
@@ -225,9 +232,11 @@ function eg3d(display)
 			if display == 1 then 
 				image.display{image = imgOriginal[obs.z], win = imgOrigX}
 
+				--[[
 				image.display{image = imgSub[1+sliceSize/2], win = imgSubZ}
 				image.display{image = imgSub[{{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgSubY}
 				image.display{image = imgSub[{{},{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgSubX}
+				]]--
 
 				image.display{image = imgInterpolated[1+sliceSize/2], win = imgInterpolateDisZ}
 				image.display{image = imgInterpolated[{{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgInterpolateDisY}
@@ -236,7 +245,5 @@ function eg3d(display)
 		end
 	end
 end
-]]--
-
 
 
