@@ -5,6 +5,7 @@ require "optim"
 require "torch"
 require "xlua"
 require "gnuplot"
+threads = require "threads"
 dofile("imageCandidates.lua")
 dofile("3dInterpolation3.lua")
 models = require "models"
@@ -18,12 +19,13 @@ cmd:text("Main file for training")
 cmd:text('Options')
 cmd:option('-lr',0.001,'Learning rate')
 cmd:option('-momentum',0.95,'Momentum')
-cmd:option('-batchSize',1,'batchSize')
+cmd:option('-batchSize',3,'batchSize')
 cmd:option('-cuda',1,'CUDA')
 cmd:option('-angleMax',0.2,"Absolute maximum angle for rotating image")
 cmd:option('-clipMin',-1014,'Clip image below this value to this value')
 cmd:option('-clipMax',500,'Clip image above this value to this value')
 cmd:option('-angleMax',0.2,"Absolute maximum angle for rotating image")
+cmd:option('-display',0,"Display images/plots") 
 params = cmd:parse(arg)
 params.rundir = cmd:string('experiment', params, {dir=true})
 
@@ -71,39 +73,105 @@ train = csvToTable("CSVFILES/candidatesTrainBalanced8.csv")
 test = csvToTable("CSVFILES/candidatesTestBalanced8.csv")
 
 -- Example
+--[[
 obs = Candidate:new(train,1)
 x = rotation3d(obs, angleMax, params.sliceSize, params.clipMin, params.clipMax,1):reshape(1,params.sliceSize,params.sliceSize,params.sliceSize)
+]]--
 
-
--- Function to get batches
-function getBatch(data,from,batchSize)
-	if from + params.batchSize - 1  >= #data then to = #data else to = from + params.batchSize - 1 end -- check to see if at end of data
+trainingBatchSize=1
+queueLength=8
+g_mutex=threads.Mutex()
+g_tensorsForQueue={}
+g_MasterTensor = torch.LongTensor(3*queueLength) --first 2 begin and end of queue
+for i = 1,queueLength do
 	
-	local batch = shuffle.getBatch(data,from,to)
-	--print(batch)
-
-	-- For each image file in a batch. 1/ Load it 2/ Rotate it /3 Place it in batch tensor
-	local xBatchTensor = torch.Tensor(params.batchSize,1,params.sliceSize,params.sliceSize,params.sliceSize)
-	local yBatchTensor = torch.Tensor(params.batchSize,1)
-	if params.cuda == 1 then 
-		xBatchTensor, yBatchTensor = xBatchTensor:cuda(), yBatchTensor:cuda()
-	end
-
-	for k,v in ipairs(batch) do 
-		obs = Candidate:new(batch,k)
-		x = rotation3d(obs, angleMax, params.sliceSize, params.clipMin, params.clipMax,1):reshape(1,params.sliceSize,params.sliceSize,params.sliceSize)
-		y = obs.Class
-		xBatchTensor[k] = x 
-		yBatchTensor[k] = y 
-	end
-
-	return xBatchTensor, yBatchTensor, batch
+	g_tensorsForQueue[2*i]=torch.LongTensor(trainingBatchSize,1,params.sliceSize,params.sliceSize,params.sliceSize)
+	g_tensorsForQueue[2*i-1]=torch.Tensor(trainingBatchSize,1)
+	g_MasterTensor[3*i-1]=tonumber(torch.data(g_tensorsForQueue[2*i],1))
+	g_MasterTensor[3*i-2]=tonumber(torch.data(g_tensorsForQueue[2*i-1],1))
+	g_MasterTensor[3*i]=1
 end
+task = string.format([[
+	threads = require 'threads'
+	require 'sys'
+	dofile("imageCandidates.lua")
+	dofile("3dInterpolation3.lua")
+	dofile("getBatch.lua")
+	data = csvToTable("CSVFILES/candidatesTrainBalanced8.csv")
+	--test = csvToTable("CSVFILES/candidatesTestBalanced8.csv")
+	local g_mutex = threads.Mutex(%d)
+	local queueLength = %d
+	local g_MasterTensor = torch.LongTensor(torch.LongStorage(queueLength*3,%d))
+	local trainingBatchSize = %d
+	local s = %d
+	while 1 do
+		local ok = false
+		local index = -1
+		while not ok do
+			g_mutex:lock()
+			for i=1,queueLength do
+
+				if g_MasterTensor[3*i]==1 then
+					ok=true
+					index=i
+					g_MasterTensor[3*i] = 2
+					break
+				end
+			end
+			g_mutex:unlock()
+
+			if not ok then	
+				print("full")
+				sys.sleep(0.5)
+			end
+		end	
+		local ourX = torch.LongTensor(torch.LongStorage(trainingBatchSize*s*s*s,g_MasterTensor[3*index-1])):resize(trainingBatchSize,1,s,s,s)
+		local ourY = torch.Tensor(torch.Storage(trainingBatchSize,g_MasterTensor[3*index-2])):resize(trainingBatchSize,1)
+		getBatch(data,trainingBatchSize,ourX,ourY,s,%d,%d,%d)
+		g_mutex:lock()
+		g_MasterTensor[index*3]=3
+		g_mutex:unlock()
+	end
+]],g_mutex:id(),queueLength,tonumber(torch.data(g_MasterTensor,1)),trainingBatchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax)
+threads.Thread(task)
+threads.Thread(task)
+threads.Thread(task)
+threads.Thread(task)
+-- Batch example
+--x,y,batch = getBatch(train,5)
+
+function retrieveBatch()
+	local ok = false
+	local index = -1
+	while not ok do
+		g_mutex:lock()
+		for i=1,queueLength do
+
+			if g_MasterTensor[3*i]== 3 then
+				ok=true
+				index=i
+				g_MasterTensor[3*i] = 4 
+				break
+			end
+		end
+		g_mutex:unlock()
+
+		if not ok then	
+			sys.sleep(0.5)
+		end
+	end	
+	local x = g_tensorsForQueue[2*index]
+	local y = g_tensorsForQueue[2*index-1]
+	g_mutex:lock()
 	
+	g_MasterTensor[index*3]=1
+	g_mutex:unlock()
+	return x,y
+end
 
-function training(display)
+function training()
 
-	if displayTrue==nil and display==1 then
+	if displayTrue==nil and params.display==1 then
 		print("Initializing displays ==>")
 		zoom = 0.6
 		init = image.lena()
@@ -131,7 +199,7 @@ function training(display)
 
 			xlua.progress(i,#train)
 
-			inputs, targets, batch  = getBatch(train,i,params.batchSize)
+			inputs, targets = retrieveBatch()
 			if params.cuda == 1 then
 				inputs = inputs:cuda()
 				targets = targets:cuda()
@@ -158,14 +226,20 @@ function training(display)
 			batchLosses[#batchLosses + 1] = batchLoss[1]
 			batchLossesT = torch.Tensor(batchLosses)
 			local t = torch.range(1,batchLossesT:size()[1])
-			gnuplot.plot({"Train loss",t,batchLossesT})
+			--[[
+			gnuplot.figure(1)
+			--gnuplot.plot({"Train loss",t,batchLossesT})
+			gnuplot.figure(2)
+			--gnuplot.hist(inputs[1])
+			--gnuplot.hist(parameters)
+			]]--
 			
 
 			-- Moving average
 			ma = 5 
 			if batchLossesT:size()[1] > ma then print("Moving average of last "..ma.. " batches ==> " .. batchLossesT[{{-ma,-1}}]:mean()) end
 
-			if display == 1 and displayTrue ~= nil then 
+			if params.display == 1 and displayTrue ~= nil then 
 				local idx = params.batchSize
 				local class = batch[idx]:split(",")[2]
 

@@ -1,8 +1,3 @@
-require "torch"
-require "cunn"
-require "cutorch"
-require "image"
-
 
 function rotationMatrix(angle)
 	--Returns a 3D rotation matrix
@@ -16,8 +11,6 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 	imgOriginal = imgObject:loadImg(clipMin,clipMax,sliceSize)
 	
 	sliceSize_2 = torch.floor(sliceSize/2)
-
-
 	intervalTimer = torch.Timer()
 
 	local xSize,ySize,zSize = sliceSize, sliceSize, sliceSize -- Making a cube hence all dimensions are the same (possibly change)
@@ -32,32 +25,30 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 
 	--coords = torch.cat({xx:reshape(totSize,1),yy:reshape(totSize,1),zz:reshape(totSize,1),ones:reshape(totSize,1)},2)
 	coords = torch.cat({xx:reshape(totSize,1),yy:reshape(totSize,1),zz:reshape(totSize,1)},2)
-	coords = coords:cuda()
 
 	-- Translate coords to be about the origin i.e. mean subtract
-	--local translate = torch.ones(totSize,3):fill(-sliceSize/2)
-	local translate = torch.ones(totSize,3):fill(-sliceSize/2):cuda()
+	local translate = torch.ones(totSize,3):fill(-sliceSize/2)
 	local coordsT = coords + translate
 
 	-- Rotated coords
 	-- Rotation matrix
 	local angle = torch.uniform(-angleMax,angleMax)
 	local rotMatrix = rotationMatrix(angle)
-	rotMatrix = rotationMatrix(angle):cuda()
+	rotMatrix = rotationMatrix(angle)
 
 	-- Rotation
 	local newCoords = coordsT*rotMatrix:transpose(1,2)
 
 	--SPacing
 	--local spacing  = torch.diag(torch.Tensor{1/imgObject.zSpacing, 1/imgObject.ySpacing, 1/imgObject.xSpacing})
-	local spacing  = torch.diag(torch.Tensor{1/imgObject.zSpacing, 1/imgObject.ySpacing, 1/imgObject.xSpacing}):cuda()
+	local spacing  = torch.diag(torch.Tensor{1/imgObject.zSpacing, 1/imgObject.ySpacing, 1/imgObject.xSpacing})
 
 	newCoords = newCoords*spacing -- Using spacing information to transform back to the "real world"
 
 	-- Translate coords back to original coordinate system where the centre is on the nodule
 	local noduleZ, noduleY, noduleX  = imgObject.z, imgObject.y, imgObject.x
 	local noduleTranslate = torch.ones(totSize,3)
-	noduleTranslate = torch.ones(totSize,3):cuda()
+	noduleTranslate = torch.ones(totSize,3)
 	noduleTranslate[{{},{1}}]:fill(noduleZ)
 	noduleTranslate[{{},{2}}]:fill(noduleY)
 	noduleTranslate[{{},{3}}]:fill(noduleX)
@@ -69,15 +60,15 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 	-- Need all 8 corners of the cube in which newCoords[i,j,k] lies
 	-- ozo means onesZerosOnes
 	local zzz = torch.zeros(totSize,3)
-	zzz = torch.zeros(totSize,3):cuda()
+	zzz = torch.zeros(totSize,3)
 	local ooo = torch.ones(totSize,3)
-	ooo = torch.ones(totSize,3):cuda()
+	ooo = torch.ones(totSize,3)
 
 	local function fillzo(zzz_ooo,z_o,column)
 		zzz_ooo_clone = zzz_ooo:clone()
 		zzz_ooo_clone:select(2,column):fill(z_o)
 		--return zzz_ooo_clone
-		return zzz_ooo_clone:cuda()
+		return zzz_ooo_clone
 	end
 
 	ozz = fillzo(zzz,1,1)
@@ -108,8 +99,6 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 	xy1z1 = xyz + zoo
 
 	-- Subtract the new coordinates from the 8 corners to get our distances ijk which are our weights
-	ijk = ijk:cuda()
-	ooo = ooo:cuda()
 	--
 	i,j,k = ijk[{{},{1}}], ijk[{{},{2}}], ijk[{{},{3}}]
 	i1j1k1 = ooo - ijk -- (1-i)(1-j)(1-k)
@@ -137,8 +126,6 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 		return flat_tensor:index(1, flat_indices)
 	end
 
-
-	--[[
 	fxyz = getElements(imgOriginal,xyz)
 	fx1yz = getElements(imgOriginal,x1yz)
 	fxy1z = getElements(imgOriginal,xy1z)
@@ -147,9 +134,8 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 	fx1yz1 = getElements(imgOriginal,x1yz1)
 	fxy1z1 = getElements(imgOriginal,xy1z1)
 	fx1y1z1 = getElements(imgOriginal,x1y1z1)
-	]]--
 
-
+	--[[
 	fxyz = getElements(imgOriginal,xyz):cuda()
 	fx1yz = getElements(imgOriginal,x1yz):cuda()
 	fxy1z = getElements(imgOriginal,xy1z):cuda()
@@ -158,6 +144,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 	fx1yz1 = getElements(imgOriginal,x1yz1):cuda()
 	fxy1z1 = getElements(imgOriginal,xy1z1):cuda()
 	fx1y1z1 = getElements(imgOriginal,x1y1z1):cuda()
+	]]--
 
 
 	function imgInterpolate()  
@@ -187,7 +174,8 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 			 imgObject.x - sliceSize_2, imgObject.x + sliceSize_2-1)
 			 ]]--
 
-	-- Normalize between -1 +1 
+	-- Mean remove and normalize between -1 +1 
+	imgInterpolate = imgInterpolate - imgInterpolate:mean()
 	imgInterpolate = (imgInterpolate - imgInterpolate:min())/(imgInterpolate:max()-imgInterpolate:min())*2 -1
 
 	return imgInterpolate

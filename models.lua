@@ -4,7 +4,7 @@ models = {}
 
 -- 64^3
 function models.model1()
-	nFiltersInc = 10
+	nFiltersInc = 32 
 	nFilters = {1,nFiltersInc,nFiltersInc*2,nFiltersInc*3,nFiltersInc*4}
 	filterSizeConv = {3,3,3,3,3}
 	strideConv = {1,1,1,1,1}
@@ -23,10 +23,10 @@ function models.model1()
 		modelLayers.add3DConv(model, layerNu, nFilters, filterSizeConv, strideConv, paddingConv)
 		model:add(nn.ReLU())
 		modelLayers.addMP(model, layerNu, sizeMP, strideMP, paddingMP)
-		modelLayers.addBN(model, layerNu, nFilters)
+		--modelLayers.addBN(model, layerNu, nFilters)
 		layerNu = layerNu + 1
 	end
-	lastLayerNeurons = 40*3*3*3
+	lastLayerNeurons = 32*4*5*5*5
 	model:add(nn.View(lastLayerNeurons))
 	model:add(nn.Linear(lastLayerNeurons,1))
 	model:add(nn.Sigmoid())
@@ -36,7 +36,7 @@ end
 
 --52^3
 function models.model2()
-	nFiltersInc = 20
+	nFiltersInc = 32
 	nFilters = {1,nFiltersInc,nFiltersInc*2,nFiltersInc*3,nFiltersInc*4}
 	filterSizeConv = {3,3,3,3,3}
 	strideConv = {1,1,1,1,1}
@@ -59,7 +59,7 @@ function models.model2()
 		modelLayers.addBN(model, layerNu, nFilters)
 		layerNu = layerNu + 1
 	end
-	lastLayerNeurons = 640 
+	lastLayerNeurons = 1024
 	model:add(nn.View(lastLayerNeurons))
 	model:add(nn.Linear(lastLayerNeurons,1))
 	model:add(nn.Sigmoid())

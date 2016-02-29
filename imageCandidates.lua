@@ -1,6 +1,7 @@
 dofile("readCsv.lua")
 require "cunn"
 require "cutorch"
+require "xlua"
 
 --candidateCsv = csvToTable("CSVFILES/candidatesCleaned.csv")
 --trainCSV = csvToTable("CSVFILES/CandidatesTrain8.csv")
@@ -39,7 +40,7 @@ function Candidate:loadImg(clipMin,clipMax,sliceSize)
 	img[img:gt(clipMax)] = clipMax
 
 	-- Remove mean
-	img = img - img:mean()
+	--img = img - img:mean()
 
 	-- Function to check if nodule coords are near edge
 	function checkCoords(coord, coordMax, sliceSize)
