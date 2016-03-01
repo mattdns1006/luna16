@@ -12,7 +12,6 @@ end
 
 function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 
-
 	local imgOriginal = imgObject:loadImg(clipMin,clipMax,sliceSize)
 	
 	local sliceSize_2 = torch.floor(sliceSize/2)
@@ -28,7 +27,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 
 	-- Translate coords to be about the origin i.e. mean subtract
 	local translate = torch.ones(totSize,3):fill(-sliceSize/2)
-	local coordsT = coords + translate
+	coords:add(translate)
 
 	--Timer
 	--timeToLoad = torch.Timer()
@@ -40,7 +39,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 	local rotMatrix = rotationMatrix(angle)
 
 	-- Rotation
-	local newCoords = coordsT*rotMatrix:transpose(1,2)
+	local newCoords = coords*rotMatrix:transpose(1,2)
 
 	--SPacing
 	local spacing  = torch.diag(torch.Tensor{1/imgObject.zSpacing, 1/imgObject.ySpacing, 1/imgObject.xSpacing})
@@ -174,6 +173,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 	imgInterpolate:add(-min)
 	imgInterpolate:mul(1.0/range)
 	]]--
+	collectgarbage()
 
 	return imgInterpolate
 end
@@ -215,11 +215,11 @@ function eg3d(display)
 		obs = Candidate:new(csv,observationNumber)
 		print(obs)
 
-		for j = 1,10 do 
+		n = 10
+		for j = 1,n do 
 			--observationNumber = torch.random(nobs)
 			imgInterpolated, imgSub = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax)
-			print('Time elapsed for interpolation : ' .. timer:time().real .. ' seconds')	
-			timer:reset()
+
 			
 			if display == 1 then 
 				image.display{image = imgOriginal[obs.z], win = imgOrigX}
@@ -235,6 +235,8 @@ function eg3d(display)
 				image.display{image = imgInterpolated[{{},{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgInterpolateDisX}
 			end
 		end
+		print('Time elapsed for interpolation of n = '..n..': ' .. timer:time().real .. ' seconds')	
+		timer:reset()
 	end
 end
 

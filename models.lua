@@ -4,7 +4,7 @@ models = {}
 
 -- 64^3
 function models.model1()
-	nFiltersInc = 32 
+	nFiltersInc = 64 
 	nFilters = {1,nFiltersInc,nFiltersInc*2,nFiltersInc*3,nFiltersInc*4}
 	filterSizeConv = {3,3,3,3,3}
 	strideConv = {1,1,1,1,1}
@@ -21,12 +21,13 @@ function models.model1()
 	for i = 1,4 do 
 
 		modelLayers.add3DConv(model, layerNu, nFilters, filterSizeConv, strideConv, paddingConv)
-		model:add(nn.ReLU())
+		--model:add(nn.PReLU())
+		model:add(nn.Tanh())
 		modelLayers.addMP(model, layerNu, sizeMP, strideMP, paddingMP)
 		--modelLayers.addBN(model, layerNu, nFilters)
 		layerNu = layerNu + 1
 	end
-	lastLayerNeurons = 128*3*3*3 
+	lastLayerNeurons = 64*4*4*4*4 
 	model:add(nn.View(lastLayerNeurons))
 	model:add(nn.Linear(lastLayerNeurons,1))
 	model:add(nn.Sigmoid())

@@ -14,40 +14,51 @@ shuffle = require "shuffle"
 
 ------------------------------------------ GLobal vars/params ---------------------------------------- 
 
+-- Model
+model = models.model1()
+--model = torch.load("models/model1.model")
+print("Model == >",model)
+
+criterion = nn.MSECriterion()
+--criterion = nn.BCECriterion()
+
+
 cmd = torch.CmdLine()
 cmd:text()
 cmd:text()
 cmd:text('Options')
 cmd:option('-train',0,'Train straight away')
-cmd:option('-lr',0.000000001,'Learning rate')
+cmd:option('-lr',0.000003,'Learning rate')
 cmd:option('-momentum',0.95,'Momentum')
-cmd:option('-batchSize',4,'batchSize')
+cmd:option('-batchSize',1,'batchSize')
 cmd:option('-cuda',1,'CUDA')
-cmd:option('-sliceSize',64,"Size of cube around nodule")
+cmd:option('-sliceSize',84,"Size of cube around nodule")
 cmd:option('-angleMax',0.2,"Absolute maximum angle for rotating image")
-cmd:option('-clipMin',-1000,'Clip image below this value to this value')
-cmd:option('-clipMax',500,'Clip image above this value to this value')
+cmd:option('-clipMin',-1300,'Clip image below this value to this value')
+cmd:option('-clipMax',600,'Clip image above this value to this value')
 cmd:option('-angleMax',0.2,"Absolute maximum angle for rotating image")
 cmd:option('-display',0,"Display images/plots") 
 cmd:option('-useThreads',1,"Use threads or not") 
+cmd:option('-activations',0,"Show activations -- needs -display 1") 
 cmd:text()
 params = cmd:parse(arg)
-params.rundir = cmd:string('experiment', params, {dir=true})
-paths.mkdir(params.rundir)
-
-
+params.model = model
+params.rundir = cmd:string('results', params, {dir=true})
+local logPath = "results/"..params.rundir
+paths.mkdir(logPath)
+logger = optim.Logger(logPath.. '/results.log') 
 angleMax = params.angleMax
+print("==> Parameters",params)
+
+--Show activations need first n layers
+if params.activations == 1 then
+	modelActivations = nn.Sequential()
+	for i=1,2 do modelActivations:add(model:get(i)) end
+	if params.cuda == 1 then modelActivations:cuda() end
+	print("==>Activations check " , modelActivations)
+end
 
 -- Optimizer
---[[
-optimState = {
-	learningRate = params.lr,
-	beta1 = 0.9,
-	beta2 = 0.999,
-	epsilon = 1e-8
-}
-optimMethod = optim.sgd
-]]--
 optimState = {
 	learningRate = params.lr,
 	beta1 = 0.9,
@@ -55,15 +66,6 @@ optimState = {
 	epsilon = 1e-8
 }
 optimMethod = optim.adam
-
-
--- Model
-model = models.model1()
---model = torch.load("models/model1.model")
-print("Model == >",model)
-print("==> Parameters",params)
-criterion = nn.MSECriterion()
---criterion = nn.BCECriterion()
 
 if params.cuda == 1 then
 	model = model:cuda()
@@ -81,12 +83,11 @@ train = csvToTable("CSVFILES/candidatesTrainBalanced8.csv")
 test = csvToTable("CSVFILES/candidatesTestBalanced8.csv")
 
 trainingBatchSize= params.batchSize
-queueLength= 25 
+queueLength= 20 
 g_mutex=threads.Mutex()
 g_tensorsForQueue={}
 g_MasterTensor = torch.LongTensor(3*queueLength) --first 2 begin and end of queue
 for i = 1,queueLength do
-	
 	g_tensorsForQueue[2*i]=torch.LongTensor(trainingBatchSize,1,params.sliceSize,params.sliceSize,params.sliceSize)
 	g_tensorsForQueue[2*i-1]=torch.Tensor(trainingBatchSize,1)
 	g_MasterTensor[3*i-1]=tonumber(torch.data(g_tensorsForQueue[2*i],1))
@@ -165,7 +166,7 @@ function retrieveBatch()
 		g_mutex:unlock()
 
 		if not ok then	
-			sys.sleep(0.5)
+			sys.sleep(0.1)
 		end
 	end	
 	local x = g_tensorsForQueue[2*index]
@@ -186,11 +187,7 @@ function training()
 		imgZ = image.display{image=init, zoom=zoom, offscreen=false}
 		imgY = image.display{image=init, zoom=zoom, offscreen=false}
 		imgX = image.display{image=init, zoom=zoom, offscreen=false}
-		--[[
-		imgOrigZ = image.display{image=init, zoom=zoom, offscreen=false}
-		imgOrigY = image.display{image=init, zoom=zoom, offscreen=false}
-		imgOrigX = image.display{image=init, zoom=zoom, offscreen=false}
-		]]--
+		activationDisplay = image.display{image=init, zoom=zoom, offscreen=false}
 		displayTrue = "not nil"
 	end
 
@@ -228,50 +225,47 @@ function training()
 
 				predictions = model:forward(inputs)
 				loss = criterion:forward(predictions,targets)
-
 				dLoss_d0 = criterion:backward(predictions,targets)
+				print(loss)
+				logger:add{['loss'] = loss }
+
+
 				model:backward(inputs, dLoss_d0)
 
 				return loss, gradParameters
 
 			end
 			-- Possibly improve this to take batch with large error more frequently
-			--for i=1,2 do
 			_, batchLoss = optimMethod(feval,parameters,optimState)
 			batchLosses[#batchLosses + 1] = batchLoss[1]/params.batchSize
-			--end
+			
 			local batchLossesT = torch.Tensor(batchLosses)
 			local t = torch.range(1,batchLossesT:size()[1])
+			if i % 20 ==0 then
+				gnuplot.figure(1)
+				ma = 20 
+				if batchLossesT:size()[1] > ma then print("Moving average of last "..ma.. " batches ==> " .. batchLossesT[{{-ma,-1}}]:mean()) end
 
-			--[[
-			gnuplot.figure(1)
-			--gnuplot.plot({"Train loss",t,batchLossesT})
-			gnuplot.figure(2)
-			--gnuplot.hist(inputs[1])
-			--gnuplot.hist(parameters)
-			]]--
+				gnuplot.plot({"Train loss",t,batchLossesT})
+			end
 
-			-- Moving average
-			ma = 5 
-			if batchLossesT:size()[1] > ma then print("Moving average of last "..ma.. " batches ==> " .. batchLossesT[{{-ma,-1}}]:mean()) end
 
-			if params.display == 1 and displayTrue ~= nil then 
+			if params.display == 1 and displayTrue ~= nil and i % 5 == 0 then 
 				local idx = 1 
-				local class = "Class " .. targets[1][1]
+				local class = "Class = " .. targets[1][1] .. ". Prediction = ".. predictions[1]
 
 				-- Display rotated images
 				image.display{image = inputs[{{idx},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgZ, legend = class}
 				image.display{image = inputs[{{idx},{},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgY, legend = class}
 				image.display{image = inputs[{{idx},{},{},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgX, legend = class}
 
-				--[[
-				imgSub  = imgOriginal:sub(obs.z-sliceSize/2 +1 , obs.z+sliceSize/2 , obs.y-sliceSize/2+1, obs.y+sliceSize/2, obs.x - sliceSize/2 + 1, obs.x +sliceSize/2)
+				-- Display first layer activtion plane. Draw one activation plane at random and slice on first (z) dimension.
+				local activations = modelActivations:forward(inputs)
+				local randomFeat = torch.random(1,modelActivations:get(2).nOutputPlane)
 
-				-- Display original slices
-				image.display{image = imgSub[sliceSize/2]:reshape(sliceSize,sliceSize), win = imgOrigZ, legend = class}
-				image.display{image = imgSub[{{},{sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgOrigY, legend = class}
-				image.display{image = imgSub[{{},{},{sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgOrigX, legend = class}
-				]]--
+				image.display{image = activations[{{1},{randomFeat},{params.sliceSize/2}}]:reshape(params.sliceSize,params.sliceSize), win = activationDisplay, legend = "Activations"}
+
+
 			end
 
 
