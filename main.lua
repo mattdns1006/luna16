@@ -31,10 +31,10 @@ cmd:option('-lr',0.000003,'Learning rate')
 cmd:option('-momentum',0.95,'Momentum')
 cmd:option('-batchSize',1,'batchSize')
 cmd:option('-cuda',1,'CUDA')
-cmd:option('-sliceSize',40,"Size of cube around nodule")
+cmd:option('-sliceSize',54,"Size of cube around nodule")
 cmd:option('-angleMax',0.5,"Absolute maximum angle for rotating image")
 cmd:option('-scalingFactor',1.2,'Scaling factor for image')
-cmd:option('-clipMin',-800,'Clip image below this value to this value')
+cmd:option('-clipMin',-1000,'Clip image below this value to this value')
 cmd:option('-clipMax',500,'Clip image above this value to this value')
 cmd:option('-useThreads',1,"Use threads or not") 
 cmd:option('-display',0,"Display images/plots") 
@@ -51,10 +51,13 @@ print("==> Parameters",params)
 
 --Show activations need first n layers
 if params.activations == 1 then
-	modelActivations = nn.Sequential()
-	for i=1,3 do modelActivations:add(model:get(i)) end
-	if params.cuda == 1 then modelActivations:cuda() end
-	print("==>Activations check " , modelActivations)
+	modelActivations1 = nn.Sequential()
+	for i=1,3 do modelActivations1:add(model:get(i)) end
+
+	--print("==>Activations check " , modelActivations)
+	modelActivations2 = nn.Sequential()
+	for i=1,10 do modelActivations2:add(model:get(i)) end
+	if params.cuda == 1 then modelActivations1:cuda(); modelActivations2:cuda(); end
 end
 
 -- Optimizer
@@ -80,7 +83,7 @@ train = csvToTable("CSVFILES/candidatesTrainBalanced8.csv")
 test = csvToTable("CSVFILES/candidatesTestBalanced8.csv")
 
 trainingBatchSize= params.batchSize
-queueLength= 20 
+queueLength= 12 
 g_mutex=threads.Mutex()
 g_tensorsForQueue={}
 g_MasterTensor = torch.LongTensor(3*queueLength) --first 2 begin and end of queue
@@ -122,7 +125,7 @@ task = string.format([[
 
 			if not ok then	
 				--print("full")
-				sys.sleep(0.4)
+				sys.sleep(0.001)
 			end
 		end	
 		local ourX = torch.LongTensor(torch.LongStorage(trainingBatchSize*s*s*s,g_MasterTensor[3*index-1])):resize(trainingBatchSize,1,s,s,s)
@@ -135,6 +138,9 @@ task = string.format([[
 ]],g_mutex:id(),queueLength,tonumber(torch.data(g_MasterTensor,1)),trainingBatchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor)
 if params.useThreads then 
 	print("==> Multithreading inputs")
+	threads.Thread(task)
+	threads.Thread(task)
+	threads.Thread(task)
 	threads.Thread(task)
 	threads.Thread(task)
 	threads.Thread(task)
@@ -163,7 +169,7 @@ function retrieveBatch()
 		g_mutex:unlock()
 
 		if not ok then	
-			sys.sleep(0.4)
+			sys.sleep(0.001)
 		end
 	end	
 	local x = g_tensorsForQueue[2*index]
@@ -185,7 +191,8 @@ function training()
 		imgY = image.display{image=init, zoom=zoom, offscreen=false}
 		imgX = image.display{image=init, zoom=zoom, offscreen=false}
 		if params.activations == 1 then
-			activationDisplay = image.display{image=init, zoom=zoom, offscreen=false}
+			activationDisplay1 = image.display{image=init, zoom=zoom, offscreen=false}
+			--activationDisplay2 = image.display{image=init, zoom=zoom, offscreen=false}
 		end
 		displayTrue = "not nil"
 	end
@@ -249,7 +256,7 @@ function training()
 			end
 
 
-			if params.display == 1 and displayTrue ~= nil and i % 5 == 0 then 
+			if params.display == 1 and displayTrue ~= nil and i % 3 == 0 then 
 				local idx = 1 
 				local class = "Class = " .. targets[1][1] .. ". Prediction = ".. predictions[1]
 
@@ -260,10 +267,9 @@ function training()
 
 				-- Display first layer activtion plane. Draw one activation plane at random and slice on first (z) dimension.
 				if params.activations == 1 then 
-					local activations = modelActivations:forward(inputs)
-					local randomFeat = torch.random(1,modelActivations:get(2).nOutputPlane)
-
-					image.display{image = activations[{{1},{randomFeat},{params.sliceSize/2}}]:reshape(params.sliceSize,params.sliceSize), win = activationDisplay, legend = "Activations"}
+					local activations1 = modelActivations1:forward(inputs)
+					local randomFeat1 = torch.random(1,modelActivations1:get(2).nOutputPlane)
+					image.display{image = activations1[{{1},{randomFeat1},{params.sliceSize/2}}]:reshape(params.sliceSize,params.sliceSize), win = activationDisplay1, legend = "Activations"}
 				end
 
 			end

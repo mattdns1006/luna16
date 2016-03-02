@@ -58,7 +58,8 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax, scalingFac
 
 	--Spacing & scaling
 	local spacing  = torch.diag(torch.Tensor{1/imgObject.zSpacing, 1/imgObject.ySpacing, 1/imgObject.xSpacing})
-	newCoords = newCoords*spacing*scalingFactor -- Using spacing information to transform back to the "real world"
+	local sf = torch.normal(scalingFactor,0.01)
+	newCoords = newCoords*spacing*sf -- Using spacing information to transform back to the "real world"
 
 	-- Translate coords back to original coordinate system where the centre is on the nodule
 	local noduleZ, noduleY, noduleX  = imgObject.z, imgObject.y, imgObject.x
