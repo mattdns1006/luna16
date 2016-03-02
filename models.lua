@@ -18,16 +18,16 @@ function models.model1()
 
 	layerNu = 2 
 	modelLayers.addBN(model, 1, 1)
-	for i = 1,4 do 
+	for i = 1,3 do 
 
 		modelLayers.add3DConv(model, layerNu, nFilters, filterSizeConv, strideConv, paddingConv)
 		--model:add(nn.PReLU())
 		model:add(nn.Tanh())
 		modelLayers.addMP(model, layerNu, sizeMP, strideMP, paddingMP)
-		--modelLayers.addBN(model, layerNu, nFilters)
+		modelLayers.addBN(model, layerNu, nFilters)
 		layerNu = layerNu + 1
 	end
-	lastLayerNeurons = 64*4*4*4*4 
+	lastLayerNeurons = 192*4*4*4 
 	model:add(nn.View(lastLayerNeurons))
 	model:add(nn.Linear(lastLayerNeurons,1))
 	model:add(nn.Sigmoid())

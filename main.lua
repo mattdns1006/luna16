@@ -22,7 +22,6 @@ print("Model == >",model)
 criterion = nn.MSECriterion()
 --criterion = nn.BCECriterion()
 
-
 cmd = torch.CmdLine()
 cmd:text()
 cmd:text()
@@ -32,15 +31,16 @@ cmd:option('-lr',0.000003,'Learning rate')
 cmd:option('-momentum',0.95,'Momentum')
 cmd:option('-batchSize',1,'batchSize')
 cmd:option('-cuda',1,'CUDA')
-cmd:option('-sliceSize',84,"Size of cube around nodule")
-cmd:option('-angleMax',0.2,"Absolute maximum angle for rotating image")
-cmd:option('-clipMin',-1300,'Clip image below this value to this value')
-cmd:option('-clipMax',600,'Clip image above this value to this value')
-cmd:option('-angleMax',0.2,"Absolute maximum angle for rotating image")
-cmd:option('-display',0,"Display images/plots") 
+cmd:option('-sliceSize',40,"Size of cube around nodule")
+cmd:option('-angleMax',0.5,"Absolute maximum angle for rotating image")
+cmd:option('-scalingFactor',0.8,'Scaling factor for image')
+cmd:option('-clipMin',-1000,'Clip image below this value to this value')
+cmd:option('-clipMax',500,'Clip image above this value to this value')
 cmd:option('-useThreads',1,"Use threads or not") 
+cmd:option('-display',0,"Display images/plots") 
 cmd:option('-activations',0,"Show activations -- needs -display 1") 
 cmd:text()
+
 params = cmd:parse(arg)
 params.model = model
 params.rundir = cmd:string('results', params, {dir=true})
@@ -53,7 +53,7 @@ print("==> Parameters",params)
 --Show activations need first n layers
 if params.activations == 1 then
 	modelActivations = nn.Sequential()
-	for i=1,2 do modelActivations:add(model:get(i)) end
+	for i=1,3 do modelActivations:add(model:get(i)) end
 	if params.cuda == 1 then modelActivations:cuda() end
 	print("==>Activations check " , modelActivations)
 end
@@ -74,8 +74,6 @@ if params.cuda == 1 then
 end
 
 -- Add confusion matrix -- TO DO
-classes = {"0","1"}
-cmTrain = optim.ConfusionMatrix(classes)
 
 -- Load data
 --candidateCsv = csvToTable("CSVFILES/candidatesCleaned.csv")
@@ -144,6 +142,7 @@ if params.useThreads then
 	threads.Thread(task)
 	threads.Thread(task)
 	threads.Thread(task)
+	threads.Thread(task)
 end
 
 -- Batch example
@@ -187,7 +186,9 @@ function training()
 		imgZ = image.display{image=init, zoom=zoom, offscreen=false}
 		imgY = image.display{image=init, zoom=zoom, offscreen=false}
 		imgX = image.display{image=init, zoom=zoom, offscreen=false}
-		activationDisplay = image.display{image=init, zoom=zoom, offscreen=false}
+		if params.activations == 1 then
+			activationDisplay = image.display{image=init, zoom=zoom, offscreen=false}
+		end
 		displayTrue = "not nil"
 	end
 
@@ -241,7 +242,7 @@ function training()
 			
 			local batchLossesT = torch.Tensor(batchLosses)
 			local t = torch.range(1,batchLossesT:size()[1])
-			if i % 20 ==0 then
+			if i % 5 == 0 then
 				gnuplot.figure(1)
 				ma = 20 
 				if batchLossesT:size()[1] > ma then print("Moving average of last "..ma.. " batches ==> " .. batchLossesT[{{-ma,-1}}]:mean()) end
@@ -260,11 +261,12 @@ function training()
 				image.display{image = inputs[{{idx},{},{},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgX, legend = class}
 
 				-- Display first layer activtion plane. Draw one activation plane at random and slice on first (z) dimension.
-				local activations = modelActivations:forward(inputs)
-				local randomFeat = torch.random(1,modelActivations:get(2).nOutputPlane)
+				if params.activations == 1 then 
+					local activations = modelActivations:forward(inputs)
+					local randomFeat = torch.random(1,modelActivations:get(2).nOutputPlane)
 
-				image.display{image = activations[{{1},{randomFeat},{params.sliceSize/2}}]:reshape(params.sliceSize,params.sliceSize), win = activationDisplay, legend = "Activations"}
-
+					image.display{image = activations[{{1},{randomFeat},{params.sliceSize/2}}]:reshape(params.sliceSize,params.sliceSize), win = activationDisplay, legend = "Activations"}
+				end
 
 			end
 

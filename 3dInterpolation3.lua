@@ -2,16 +2,33 @@ dofile("imageCandidates.lua")
 require "image"
 require "torch"
 
---dofile("3dInterpolation3.lua")
-function rotationMatrix(angle)
-	--Returns a 3D rotation matrix
-	local rotMatrix = torch.Tensor{1,0,0,0,0,torch.cos(angle),-torch.sin(angle),0,0,torch.sin(angle),torch.cos(angle),0}:reshape(3,4)
+--[[
+cmd = torch.CmdLine()
+cmd:text()
+cmd:text()
+cmd:text('Options')
+cmd:option('-display',0,'Display images?')
+cmd:option('-displayZoom',0.4,'Image zoom size')
+cmd:option('-runEg',0,'Run example')
+cmd:option('-sliceSize',40,'Slicesize')
+cmd:option('-clipMin',-800,'Clipmin')
+cmd:option('-clipMax',500,'Clipmin')
+cmd:option('-angleMax',0.8,'angleMax')
+cmd:option('-scalingFactor',0.8,'Scaling Factor')
+cmd:text()
+
+parameters = cmd:parse(arg)
+parameters.rundir = cmd:string('parameters', parameters, {dir=true})
+]]--
+
+function rotationMatrix(angle)  --Returns a 3D rotation matrix
 	local rotMatrix = torch.Tensor{1,0,0,0,torch.cos(angle),-torch.sin(angle),0,torch.sin(angle),torch.cos(angle)}:reshape(3,3)
 	return rotMatrix
 end
 
-function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
+function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax, scalingFactor) -- Returns 3d interpolated image
 
+	local scalingFactor = 0.8
 	local imgOriginal = imgObject:loadImg(clipMin,clipMax,sliceSize)
 	
 	local sliceSize_2 = torch.floor(sliceSize/2)
@@ -24,8 +41,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 	local yy = y:repeatTensor(zSize):sort():long():repeatTensor(xSize):double()
 	local xx = x:repeatTensor(zSize*ySize):sort():long():double()
 	local coords = torch.cat({xx:reshape(totSize,1),yy:reshape(totSize,1),zz:reshape(totSize,1)},2)
-
-	-- Translate coords to be about the origin i.e. mean subtract
+-- Translate coords to be about the origin i.e. mean subtract
 	local translate = torch.ones(totSize,3):fill(-sliceSize/2)
 	coords:add(translate)
 
@@ -41,9 +57,9 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 	-- Rotation
 	local newCoords = coords*rotMatrix:transpose(1,2)
 
-	--SPacing
+	--Spacing & scaling
 	local spacing  = torch.diag(torch.Tensor{1/imgObject.zSpacing, 1/imgObject.ySpacing, 1/imgObject.xSpacing})
-	local newCoords = newCoords*spacing -- Using spacing information to transform back to the "real world"
+	newCoords = newCoords*spacing*scalingFactor -- Using spacing information to transform back to the "real world"
 
 	-- Translate coords back to original coordinate system where the centre is on the nodule
 	local noduleZ, noduleY, noduleX  = imgObject.z, imgObject.y, imgObject.x
@@ -141,28 +157,6 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 		      torch.cmul(Wfx1y1z,fx1y1z) + torch.cmul(Wfx1yz1,fx1yz1) +
 		      torch.cmul(Wfxy1z1,fxy1z1) + torch.cmul(Wfx1y1z1,fx1y1z1)
 
-		--[[
-		function imgInterpolate()  
-			local out = torch.mul(i1,0)
-			local t = torch.mul(i1,0)
-			function addall(a1,a2,a3,a4)
-				torch.cmul(t,a1,a2)
-				t:cmul(a3)
-				t:cmul(a4)
-				out:add(t)
-			end
-			addall(i1,j1,k1,fxyz)
-			addall(i,j1,k1,fx1yz)
-			addall(i1,j,k1,fxy1z)
-			addall(i1,j1,k,fxyz1)
-			addall(i,j,k1,fx1y1z)
-			addall(i,j1,k,fx1yz1)
-			addall(i1,j,k,fxy1z1)
-			addall(i,j,k,fx1y1z1)
-			return out
-		end
-		]]--
-
 	imgInterpolate:resize(xSize,ySize,zSize)
 
 	-- Mean remove and normalize between -1 +1 
@@ -178,66 +172,63 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax,rotate)
 	return imgInterpolate
 end
 
---Example
-function eg3d(display)
+--Example/Tests
+function eg3d()
 
 	dofile("readCsv.lua")
 	dofile("imageCandidates.lua")
 	csv = csvToTable("CSVFILES/candidatesClass1.csv")
-
-	angleMax = 0.8
-	sliceSize = 96 
-	clipMin = -1014 -- clip sizes determined from ipython nb
-	clipMax = 500
+	local timeToInterpolate = {}
+	local imgOriginalZoom = 1
 
 	--Initialize displays
-	if displayTrue==nil and display==1 then
+	if displayTrue==nil and parameters.display==1 then
 		print("Initializing displays ==>")
-		zoom = 0.5
-		init = image.lena()
-		imgOrigX = image.display{image=init, zoom=zoom, offscreen=false}
-		--[[
-		imgSubZ = image.display{image=init, zoom=zoom, offscreen=false}
-		imgSubY = image.display{image=init, zoom=zoom, offscreen=false}
-		imgSubX = image.display{image=init, zoom=zoom, offscreen=false}
-		]]--
-		imgInterpolateDisZ = image.display{image=init, zoom=zoom, offscreen=false}
-		imgInterpolateDisY = image.display{image=init, zoom=zoom, offscreen=false}
-		imgInterpolateDisX = image.display{image=init, zoom=zoom, offscreen=false}
+		local init = image.lena()
+		imgOrigX = image.display{image=init, zoom=imgOriginalZoom, offscreen=false}
+		local displayZoom = parameters.displayZoom
+		imgSubZ = image.display{image=init, zoom=displayZoom, offscreen=false}
+		imgSubY = image.display{image=init, zoom=displayZoom, offscreen=false}
+		imgSubX = image.display{image=init, zoom=displayZoom, offscreen=false}
+		imgInterpolateDisZ = image.display{image=init, zoom=displayZoom, offscreen=false}
+		imgInterpolateDisY = image.display{image=init, zoom=displayZoom, offscreen=false}
+		imgInterpolateDisX = image.display{image=init, zoom=displayZoom, offscreen=false}
 		displayTrue = "Display initialized"
 	end
 
 	
 
 	for i=1,#csv do
-		timer = torch.Timer()
-		observationNumber = torch.random(#csv)
-		obs = Candidate:new(csv,observationNumber)
-		print(obs)
 
-		n = 10
+		local observationNumber = torch.random(#csv)
+		local obs = Candidate:new(csv,observationNumber)
+
+		local n = 10
+		local timeToInterpolateBatch = {}
 		for j = 1,n do 
-			--observationNumber = torch.random(nobs)
-			imgInterpolated, imgSub = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax)
+			local timerInterpolate = torch.Timer()
+			local imgInterpolated = rotation3d(obs, parameters.angleMax, parameters.sliceSize, parameters.clipMin, parameters.clipMax, parameters.scalingFactor)
+			timeToInterpolateBatch[#timeToInterpolateBatch + 1] = timerInterpolate:time().real -- average interpolation time of size n
+			timerInterpolate:reset()
+			local imgSub = imgOriginal:sub(obs.z-parameters.sliceSize/2, obs.z + parameters.sliceSize/2 - 1, obs.y-parameters.sliceSize/2, obs.y + parameters.sliceSize/2 - 1,obs.x-parameters.sliceSize/2, obs.x + parameters.sliceSize/2 - 1)
 
-			
-			if display == 1 then 
+			if parameters.display == 1 then 
 				image.display{image = imgOriginal[obs.z], win = imgOrigX}
 
-				--[[
-				image.display{image = imgSub[1+sliceSize/2], win = imgSubZ}
-				image.display{image = imgSub[{{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgSubY}
-				image.display{image = imgSub[{{},{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgSubX}
-				]]--
+				image.display{image = imgSub[1+parameters.sliceSize/2], win = imgSubZ}
+				image.display{image = imgSub[{{},{1+parameters.sliceSize/2}}]:reshape(parameters.sliceSize,parameters.sliceSize), win = imgSubY}
+				image.display{image = imgSub[{{},{},{1+parameters.sliceSize/2}}]:reshape(parameters.sliceSize,parameters.sliceSize), win = imgSubX}
 
-				image.display{image = imgInterpolated[1+sliceSize/2]:double(), win = imgInterpolateDisZ}
-				image.display{image = imgInterpolated[{{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgInterpolateDisY}
-				image.display{image = imgInterpolated[{{},{},{1+sliceSize/2}}]:reshape(sliceSize,sliceSize), win = imgInterpolateDisX}
+				image.display{image = imgInterpolated[1+parameters.sliceSize/2]:double(), win = imgInterpolateDisZ}
+				image.display{image = imgInterpolated[{{},{1+parameters.sliceSize/2}}]:reshape(parameters.sliceSize,parameters.sliceSize), win = imgInterpolateDisY}
+				image.display{image = imgInterpolated[{{},{},{1+parameters.sliceSize/2}}]:reshape(parameters.sliceSize,parameters.sliceSize), win = imgInterpolateDisX}
 			end
 		end
-		print('Time elapsed for interpolation of n = '..n..': ' .. timer:time().real .. ' seconds')	
-		timer:reset()
+		timeToInterpolate[#timeToInterpolate + 1] = torch.Tensor{timeToInterpolateBatch}:mean() -- Mean batch time
+		print(timeToInterpolate)
+
+		collectgarbage()
 	end
 end
-
+--if parameters.runEg == 1 then eg3d() end
 
