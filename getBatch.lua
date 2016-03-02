@@ -14,7 +14,7 @@ function getBatch(data,batchSize,xBatchTensor,yBatchTensor,sliceSize,clipMin,cli
 
 		local obs = Candidate:new(batch,k)
 		--x = obs:loadImg(clipMin,clipMax,sliceSize)[{{1,sliceSize},{1,sliceSize},{1,sliceSize}}]:reshape(1,sliceSize,sliceSize,sliceSize)
-		local x = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax,scalingFactor):reshape(1,sliceSize,sliceSize,sliceSize)
+		local x = rotation3d(obs, angleMax, sliceSize, clipMin, clipMax, scalingFactor):reshape(1,sliceSize,sliceSize,sliceSize)
 		local y = obs.Class
 		xBatchTensor[k] = x 
 		yBatchTensor[k] = y 

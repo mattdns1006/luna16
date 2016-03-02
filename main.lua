@@ -33,8 +33,8 @@ cmd:option('-batchSize',1,'batchSize')
 cmd:option('-cuda',1,'CUDA')
 cmd:option('-sliceSize',40,"Size of cube around nodule")
 cmd:option('-angleMax',0.5,"Absolute maximum angle for rotating image")
-cmd:option('-scalingFactor',0.8,'Scaling factor for image')
-cmd:option('-clipMin',-1000,'Clip image below this value to this value')
+cmd:option('-scalingFactor',1.2,'Scaling factor for image')
+cmd:option('-clipMin',-800,'Clip image below this value to this value')
 cmd:option('-clipMax',500,'Clip image above this value to this value')
 cmd:option('-useThreads',1,"Use threads or not") 
 cmd:option('-display',0,"Display images/plots") 
@@ -47,7 +47,6 @@ params.rundir = cmd:string('results', params, {dir=true})
 local logPath = "results/"..params.rundir
 paths.mkdir(logPath)
 logger = optim.Logger(logPath.. '/results.log') 
-angleMax = params.angleMax
 print("==> Parameters",params)
 
 --Show activations need first n layers
@@ -123,17 +122,17 @@ task = string.format([[
 
 			if not ok then	
 				--print("full")
-				sys.sleep(0.1)
+				sys.sleep(0.4)
 			end
 		end	
 		local ourX = torch.LongTensor(torch.LongStorage(trainingBatchSize*s*s*s,g_MasterTensor[3*index-1])):resize(trainingBatchSize,1,s,s,s)
 		local ourY = torch.Tensor(torch.Storage(trainingBatchSize,g_MasterTensor[3*index-2])):resize(trainingBatchSize,1)
-		getBatch(data,trainingBatchSize,ourX,ourY,s,%d,%d,%d)
+		getBatch(data,trainingBatchSize,ourX,ourY,s,%d,%d,%f,%f)
 		g_mutex:lock()
 		g_MasterTensor[index*3]=3
 		g_mutex:unlock()
 	end
-]],g_mutex:id(),queueLength,tonumber(torch.data(g_MasterTensor,1)),trainingBatchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax)
+]],g_mutex:id(),queueLength,tonumber(torch.data(g_MasterTensor,1)),trainingBatchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor)
 if params.useThreads then 
 	print("==> Multithreading inputs")
 	threads.Thread(task)
@@ -143,10 +142,9 @@ if params.useThreads then
 	threads.Thread(task)
 	threads.Thread(task)
 	threads.Thread(task)
+	threads.Thread(task)
+	threads.Thread(task)
 end
-
--- Batch example
---x,y,batch = getBatch(train,5)
 
 function retrieveBatch()
 	local ok = false
@@ -165,13 +163,13 @@ function retrieveBatch()
 		g_mutex:unlock()
 
 		if not ok then	
-			sys.sleep(0.1)
+			sys.sleep(0.4)
 		end
 	end	
 	local x = g_tensorsForQueue[2*index]
 	local y = g_tensorsForQueue[2*index-1]
 	g_mutex:lock()
-	
+
 	g_MasterTensor[index*3]=1
 	g_mutex:unlock()
 	return x,y
@@ -208,7 +206,7 @@ function training()
 				local xBatchTensor = torch.Tensor(params.batchSize,1,params.sliceSize,params.sliceSize,params.sliceSize)
 				local yBatchTensor = torch.Tensor(params.batchSize,1)
 
-				getBatch(train,params.batchSize,xBatchTensor,yBatchTensor,params.sliceSize,params.clipMin,params.clipMax,params.angleMax)
+				getBatch(train,params.batchSize,xBatchTensor,yBatchTensor,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor)
 				inputs, targets = xBatchTensor, yBatchTensor
 			else 
 				inputs, targets = retrieveBatch()

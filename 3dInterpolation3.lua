@@ -28,7 +28,6 @@ end
 
 function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax, scalingFactor) -- Returns 3d interpolated image
 
-	local scalingFactor = 0.8
 	local imgOriginal = imgObject:loadImg(clipMin,clipMax,sliceSize)
 	
 	local sliceSize_2 = torch.floor(sliceSize/2)
@@ -167,7 +166,6 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax, scalingFac
 	imgInterpolate:add(-min)
 	imgInterpolate:mul(1.0/range)
 	]]--
-	collectgarbage()
 
 	return imgInterpolate
 end
