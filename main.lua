@@ -31,11 +31,11 @@ cmd:option('-lr',0.0000003,'Learning rate')
 cmd:option('-momentum',0.95,'Momentum')
 cmd:option('-batchSize',1,'batchSize')
 cmd:option('-cuda',1,'CUDA')
-cmd:option('-sliceSize',72,"Size of cube around nodule")
+cmd:option('-sliceSize',48,"Size of cube around nodule")
 cmd:option('-angleMax',0.5,"Absolute maximum angle for rotating image")
 cmd:option('-scalingFactor',0.86,'Scaling factor for image')
 cmd:option('-clipMin',-1200,'Clip image below this value to this value')
-cmd:option('-clipMax',600,'Clip image above this value to this value')
+cmd:option('-clipMax',1000,'Clip image above this value to this value')
 cmd:option('-useThreads',1,"Use threads or not") 
 cmd:option('-display',0,"Display images/plots") 
 cmd:option('-activations',0,"Show activations -- needs -display 1") 
@@ -53,11 +53,6 @@ print("==> Parameters",params)
 if params.activations == 1 then
 	modelActivations1 = nn.Sequential()
 	for i=1,3 do modelActivations1:add(model:get(i)) end
-
-	--print("==>Activations check " , modelActivations)
-	modelActivations2 = nn.Sequential()
-	for i=1,10 do modelActivations2:add(model:get(i)) end
-	if params.cuda == 1 then modelActivations1:cuda(); modelActivations2:cuda(); end
 end
 
 -- Optimizer
@@ -100,13 +95,24 @@ task = string.format([[
 	dofile("imageCandidates.lua")
 	dofile("3dInterpolation3.lua")
 	dofile("getBatch.lua")
-	data = csvToTable("CSVFILES/candidatesTrainBalanced8.csv")
-	--test = csvToTable("CSVFILES/candidatesTestBalanced8.csv")
+
+	-- Training data sets split by class
+	C0 = csvToTable("CSVFILES/candidatesClass0Train.csv")
+	C1 = csvToTable("CSVFILES/candidatesClass1Train.csv")
+	
+	-- Testing data sets split by class
+	--C0 = csvToTable("CSVFILES/candidatesClass0Test.csv")
+	--C1 = csvToTable("CSVFILES/candidatesClass1Test.csv")
+	
 	local g_mutex = threads.Mutex(%d)
 	local queueLength = %d
 	local g_MasterTensor = torch.LongTensor(torch.LongStorage(queueLength*3,%d))
 	local trainingBatchSize = %d
-	local s = %d
+	local s = %d -- SliceSize
+	local clipMin = %d	
+	local clipMax = %d	
+	local angleMax = %f	
+	local scalingFactor = %f
 	while 1 do
 		local ok = false
 		local index = -1
@@ -130,7 +136,15 @@ task = string.format([[
 		end	
 		local ourX = torch.LongTensor(torch.LongStorage(trainingBatchSize*s*s*s,g_MasterTensor[3*index-1])):resize(trainingBatchSize,1,s,s,s)
 		local ourY = torch.Tensor(torch.Storage(trainingBatchSize,g_MasterTensor[3*index-2])):resize(trainingBatchSize,1)
-		getBatch(data,trainingBatchSize,ourX,ourY,s,%d,%d,%f,%f)
+
+		-- With probability 0.5, 0.5 choose data from class 0 or class 1
+		if torch.uniform() < 0.5 then
+			getBatch(C0,trainingBatchSize,ourX,ourY,s,clipMin,clipMax,angleMax,scalingFactor)
+			print("Class0")
+		else
+			getBatch(C1,trainingBatchSize,ourX,ourY,s,clipMin,clipMax,angleMax,scalingFactor)
+			print("Class1")
+		end
 		g_mutex:lock()
 		g_MasterTensor[index*3]=3
 		g_mutex:unlock()
