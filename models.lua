@@ -28,7 +28,7 @@ function models.model1()
 		modelLayers.addBN(model, layerNu, nFilters)
 		layerNu = layerNu + 1
 	end
-	lastLayerNeurons = 192*5*5*5 
+	lastLayerNeurons = 192*4*4*4
 	model:add(nn.View(lastLayerNeurons))
 	--model:add(nn.Linear(lastLayerNeurons,lastLayerNeurons))
 	model:add(nn.Linear(lastLayerNeurons,1))
