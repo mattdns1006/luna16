@@ -73,9 +73,6 @@ end
 -- Add confusion matrix -- TO DO
 
 -- Load data
---candidateCsv = csvToTable("CSVFILES/candidatesCleaned.csv")
-train = csvToTable("CSVFILES/candidatesTrainBalanced8.csv")
-test = csvToTable("CSVFILES/candidatesTestBalanced8.csv")
 
 trainingBatchSize= params.batchSize
 queueLength= 8 
@@ -95,14 +92,6 @@ task = string.format([[
 	dofile("imageCandidates.lua")
 	dofile("3dInterpolation3.lua")
 	dofile("getBatch.lua")
-
-	-- Training data sets split by class
-	C0 = csvToTable("CSVFILES/candidatesClass0Train.csv")
-	C1 = csvToTable("CSVFILES/candidatesClass1Train.csv")
-	
-	-- Testing data sets split by class
-	--C0 = csvToTable("CSVFILES/candidatesClass0Test.csv")
-	--C1 = csvToTable("CSVFILES/candidatesClass1Test.csv")
 	
 	local g_mutex = threads.Mutex(%d)
 	local queueLength = %d
@@ -113,6 +102,18 @@ task = string.format([[
 	local clipMax = %d	
 	local angleMax = %f	
 	local scalingFactor = %f
+
+	-- Training data sets split by class
+	-- Data:new(path,clipMin,clipMax,sliceSize)
+	C0 = Data:new("CSVFILES/candidatesClass0Train.csv",clipMin,clipMax,s)
+	C1 = Data:new("CSVFILES/candidatesClass1Train.csv",clipMin,clipMax,s)
+	C0:getNewScan()
+	C1:getNewScan()
+	
+	-- Testing data sets split by class
+	--C0 = csvToTable("CSVFILES/candidatesClass0Test.csv")
+	--C1 = csvToTable("CSVFILES/candidatesClass1Test.csv")
+
 	while 1 do
 		local ok = false
 		local index = -1
@@ -150,14 +151,6 @@ task = string.format([[
 ]],g_mutex:id(),queueLength,tonumber(torch.data(g_MasterTensor,1)),trainingBatchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor)
 if params.useThreads then 
 	print("==> Multithreading inputs")
-	threads.Thread(task)
-	threads.Thread(task)
-	threads.Thread(task)
-	threads.Thread(task)
-	threads.Thread(task)
-	threads.Thread(task)
-	threads.Thread(task)
-	threads.Thread(task)
 	threads.Thread(task)
 	threads.Thread(task)
 	threads.Thread(task)
@@ -225,10 +218,11 @@ function training()
 		epoch = 1
 		epochLosses = {}
 		batchLosses = {}
+		n = 2000
 		
-		for i = 1, #train, params.batchSize do 
+		for i = 1, n, params.batchSize do 
 
-			xlua.progress(i,#train)
+			xlua.progress(i,n)
 			if not params.useThreads then 
 				local xBatchTensor = torch.Tensor(params.batchSize,1,params.sliceSize,params.sliceSize,params.sliceSize)
 				local yBatchTensor = torch.Tensor(params.batchSize,1)
