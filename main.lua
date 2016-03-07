@@ -78,7 +78,7 @@ train = csvToTable("CSVFILES/candidatesTrainBalanced8.csv")
 test = csvToTable("CSVFILES/candidatesTestBalanced8.csv")
 
 trainingBatchSize= params.batchSize
-queueLength= 12 
+queueLength= 8 
 g_mutex=threads.Mutex()
 g_tensorsForQueue={}
 g_MasterTensor = torch.LongTensor(3*queueLength) --first 2 begin and end of queue
@@ -131,7 +131,7 @@ task = string.format([[
 
 			if not ok then	
 				--print("full")
-				sys.sleep(0.001)
+				sys.sleep(0.1)
 			end
 		end	
 		local ourX = torch.LongTensor(torch.LongStorage(trainingBatchSize*s*s*s,g_MasterTensor[3*index-1])):resize(trainingBatchSize,1,s,s,s)
@@ -181,7 +181,7 @@ function retrieveBatch()
 		g_mutex:unlock()
 
 		if not ok then	
-			sys.sleep(0.001)
+			sys.sleep(0.1)
 		end
 	end	
 	local x = g_tensorsForQueue[2*index]

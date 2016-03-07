@@ -26,9 +26,14 @@ end
 
 function Candidate:loadImg(clipMin,clipMax,sliceSize)
 
+	--[[
+	loadTime = torch.Timer()
+	print(loadTime:time().real)
+	]]--
 	img = torch.ShortStorage(self.imgPath)
 	img = torch.ShortTensor(img):double()
 	img = img:view(-1,512,512)
+
 
 	-- Clip image to keep only ROI
 	img:clamp(clipMin,clipMax)
