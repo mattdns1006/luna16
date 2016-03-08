@@ -26,8 +26,7 @@ cmd = torch.CmdLine()
 cmd:text()
 cmd:text()
 cmd:text('Options')
-cmd:option('-train',0,'Train straight away')
-cmd:option('-lr',0.0001,'Learning rate')
+cmd:option('-lr',0.00003,'Learning rate')
 cmd:option('-momentum',0.95,'Momentum')
 cmd:option('-batchSize',8,'batchSize')
 cmd:option('-cuda',1,'CUDA')
@@ -40,6 +39,7 @@ cmd:option('-useThreads',1,"Use threads or not")
 cmd:option('-display',0,"Display images/plots") 
 cmd:option('-activations',0,"Show activations -- needs -display 1") 
 cmd:option('-log',0,"Make log file in /Results/") 
+cmd:option('-train',0,'Train straight away')
 cmd:option('-test',0,"Test") 
 --cmd:option('-loadModel',"model1.model","Load model") 
 cmd:text()
@@ -111,17 +111,25 @@ task = string.format([[
 	local scalingFactor = %f
 	local test = %d
 
-
 	-- Training data sets split by class
 	-- Data:new(path,clipMin,clipMax,sliceSize)
-	C0 = Data:new("CSVFILES/candidatesClass0Train.csv",clipMin,clipMax,s)
-	C1 = Data:new("CSVFILES/candidatesClass1Train.csv",clipMin,clipMax,s)
+	if test == 1 then 
+		print("==> Testing")
+		-- Test
+		C0 = Data:new("CSVFILES/candidatesClass0Test.csv",clipMin,clipMax,s)
+		C1 = Data:new("CSVFILES/candidatesClass1Test.csv",clipMin,clipMax,s)
+	else
+		print("==> Training")
+		-- Test
+		-- Else train
+		C0 = Data:new("CSVFILES/candidatesClass0Train.csv",clipMin,clipMax,s)
+		C1 = Data:new("CSVFILES/candidatesClass1Train.csv",clipMin,clipMax,s)
+	end
 	C0:getNewScan()
 	C1:getNewScan()
 	
 	-- Testing data sets split by class
-	--C0 = csvToTable("CSVFILES/candidatesClass0Test.csv")
-	--C1 = csvToTable("CSVFILES/candidatesClass1Test.csv")
+
 
 	while 1 do
 		local ok = false
@@ -160,6 +168,7 @@ task = string.format([[
 ]],g_mutex:id(),queueLength,tonumber(torch.data(g_MasterTensor,1)),trainingBatchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor,params.test)
 if params.useThreads then 
 	print("==> Multithreading inputs")
+	threads.Thread(task)
 	threads.Thread(task)
 	threads.Thread(task)
 	threads.Thread(task)
@@ -317,10 +326,46 @@ function training()
 	end
 end
 
+function testing()
+	batchLosses = {}
+	while true do
+		if not params.useThreads then 
+			local xBatchTensor = torch.Tensor(params.batchSize,1,params.sliceSize,params.sliceSize,params.sliceSize)
+			local yBatchTensor = torch.Tensor(params.batchSize,1)
+
+			getBatch(train,params.batchSize,xBatchTensor,yBatchTensor,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor)
+			inputs, targets = xBatchTensor, yBatchTensor
+		else 
+			inputs, targets = retrieveBatch()
+		end 
+
+		if params.cuda == 1 then
+			inputs = inputs:cuda()
+			targets = targets:cuda()
+		end
+
+		predictions = model:forward(inputs)
+		loss = criterion:forward(predictions,targets)
+		batchLosses[#batchLosses + 1] = loss 
+		local batchLossesT = torch.Tensor(batchLosses)
+		local meanLoss = batchLossesT:mean()
+
+		--print("==>Loss " ..loss)
+		--print("==> Mean loss ".. meanLoss)
+		print("==> Mean accuracy " .. 1 - meanLoss^0.5)
+		local t = torch.range(1,batchLossesT:size()[1])
+
+		--Plot
+		gnuplot.figure(1)
+		gnuplot.plot({"Test loss",t,batchLossesT})
+	end
+end
+ 
 if params.train == 1 then
 	training()
+elseif params.test == 1 then
+	testing()
 end
-
 
 
 
