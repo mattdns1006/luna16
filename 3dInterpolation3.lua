@@ -50,6 +50,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax, scalingFac
 	-- Rotated coords
 	-- Rotation matrix
 	if test == 1 then angleMax = 0 end 
+
 	local angle = torch.uniform(-angleMax,angleMax)
 	local rotMatrix = rotationMatrix(angle)
 

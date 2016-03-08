@@ -16,7 +16,8 @@ shuffle = require "shuffle"
 
 -- Model
 model = models.model1()
---model = torch.load("models/model1.model")
+modelName = "model2.model"
+model = torch.load("models/"..modelName)
 print("Model == >",model)
 
 criterion = nn.MSECriterion()
@@ -30,7 +31,7 @@ cmd:option('-lr',0.00003,'Learning rate')
 cmd:option('-momentum',0.95,'Momentum')
 cmd:option('-batchSize',8,'batchSize')
 cmd:option('-cuda',1,'CUDA')
-cmd:option('-sliceSize',42,"Size of cube around nodule")
+cmd:option('-sliceSize',42,"Length size of cube around nodule")
 cmd:option('-angleMax',0.5,"Absolute maximum angle for rotating image")
 cmd:option('-scalingFactor',0.9,'Scaling factor for image')
 cmd:option('-clipMin',-1200,'Clip image below this value to this value')
@@ -230,13 +231,14 @@ function training()
 
 	if model then parameters,gradParameters = model:getParameters() end
 
+	epoch = 1
 	while true do
 
-		epoch = 1
+
 		epochLosses = {}
 		batchLosses = {}
 		batchLossesMA = {}
-		n = 2000
+		n = 20000000
 		
 		for i = 1, n do 
 
@@ -264,7 +266,7 @@ function training()
 				predictions = model:forward(inputs)
 				loss = criterion:forward(predictions,targets)
 				dLoss_d0 = criterion:backward(predictions,targets)
-				print(string.format("Average loss per example ==> %f", loss))
+				print(string.format("Average loss per example for iteration %d ==> %f",i, loss))
 				if params.log == 1 then logger:add{['loss'] = loss } end
 				model:backward(inputs, dLoss_d0)
 
@@ -283,9 +285,9 @@ function training()
 			end
 
 
-			if i % 500  == 0 then
-				print("==> Saving weights")
-				torch.save("models/model1.model",model)
+			if i % 100 == 0 then
+				print("==> Saving weights for ".. modelName)
+				torch.save("models/"..modelName,model)
 			end
 
 			if params.display == 1 and displayTrue ~= nil and i % 5 == 0 then 

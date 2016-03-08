@@ -6,9 +6,9 @@ models = {}
 function models.model1()
 	nFiltersInc = 64 
 	nFilters = {1,nFiltersInc,nFiltersInc*2,nFiltersInc*3,nFiltersInc*4}
-	filterSizeConv = {3,3,3,3,3}
+	filterSizeConv = {5,5,5,5,5}
 	strideConv = {1,1,1,1,1}
-	paddingConv = {1,1,1,1,1}
+	paddingConv = {2,2,2,2,2}
 
 	sizeMP = {3,3,3,3,3}
 	strideMP = {2,2,2,2,2}
@@ -18,6 +18,7 @@ function models.model1()
 
 	layerNu = 2 
 	modelLayers.addBN(model, 1, 1)
+	--model:add(nn.VolumetricConvolution(1,1,2,2,2,1,1,1,0,0,0))
 	for i = 1,3 do 
 
 		modelLayers.add3DConv(model, layerNu, nFilters, filterSizeConv, strideConv, paddingConv)
