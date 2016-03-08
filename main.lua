@@ -27,27 +27,34 @@ cmd:text()
 cmd:text()
 cmd:text('Options')
 cmd:option('-train',0,'Train straight away')
-cmd:option('-lr',0.0000003,'Learning rate')
+cmd:option('-lr',0.0001,'Learning rate')
 cmd:option('-momentum',0.95,'Momentum')
-cmd:option('-batchSize',1,'batchSize')
+cmd:option('-batchSize',8,'batchSize')
 cmd:option('-cuda',1,'CUDA')
-cmd:option('-sliceSize',40,"Size of cube around nodule")
+cmd:option('-sliceSize',42,"Size of cube around nodule")
 cmd:option('-angleMax',0.5,"Absolute maximum angle for rotating image")
-cmd:option('-scalingFactor',0.86,'Scaling factor for image')
+cmd:option('-scalingFactor',0.9,'Scaling factor for image')
 cmd:option('-clipMin',-1200,'Clip image below this value to this value')
 cmd:option('-clipMax',1000,'Clip image above this value to this value')
 cmd:option('-useThreads',1,"Use threads or not") 
 cmd:option('-display',0,"Display images/plots") 
 cmd:option('-activations',0,"Show activations -- needs -display 1") 
+cmd:option('-log',0,"Make log file in /Results/") 
+cmd:option('-test',0,"Test") 
+--cmd:option('-loadModel',"model1.model","Load model") 
 cmd:text()
 
 params = cmd:parse(arg)
 params.model = model
 params.rundir = cmd:string('results', params, {dir=true})
-local logPath = "results/"..params.rundir
-paths.mkdir(logPath)
-logger = optim.Logger(logPath.. '/results.log') 
 print("==> Parameters",params)
+
+if params.log == 1 then  -- Log file
+	local logPath = "results/"..params.rundir
+	paths.mkdir(logPath)
+	logger = optim.Logger(logPath.. '/results.log') 
+end
+
 
 --Show activations need first n layers
 if params.activations == 1 then
@@ -102,6 +109,8 @@ task = string.format([[
 	local clipMax = %d	
 	local angleMax = %f	
 	local scalingFactor = %f
+	local test = %d
+
 
 	-- Training data sets split by class
 	-- Data:new(path,clipMin,clipMax,sliceSize)
@@ -140,18 +149,17 @@ task = string.format([[
 
 		-- With probability 0.5, 0.5 choose data from class 0 or class 1
 		if torch.uniform() < 0.5 then
-			getBatch(C0,trainingBatchSize,ourX,ourY,s,clipMin,clipMax,angleMax,scalingFactor)
+			getBatch(C0,trainingBatchSize,ourX,ourY,s,clipMin,clipMax,angleMax,scalingFactor,test)
 		else
-			getBatch(C1,trainingBatchSize,ourX,ourY,s,clipMin,clipMax,angleMax,scalingFactor)
+			getBatch(C1,trainingBatchSize,ourX,ourY,s,clipMin,clipMax,angleMax,scalingFactor,test)
 		end
 		g_mutex:lock()
 		g_MasterTensor[index*3]=3
 		g_mutex:unlock()
 	end
-]],g_mutex:id(),queueLength,tonumber(torch.data(g_MasterTensor,1)),trainingBatchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor)
+]],g_mutex:id(),queueLength,tonumber(torch.data(g_MasterTensor,1)),trainingBatchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor,params.test)
 if params.useThreads then 
 	print("==> Multithreading inputs")
-	threads.Thread(task)
 	threads.Thread(task)
 	threads.Thread(task)
 	threads.Thread(task)
@@ -195,10 +203,10 @@ function training()
 		imgZ = image.display{image=init, zoom=zoom, offscreen=false}
 		imgY = image.display{image=init, zoom=zoom, offscreen=false}
 		imgX = image.display{image=init, zoom=zoom, offscreen=false}
+		--[[
 		imgZ1 = image.display{image=init, zoom=zoom, offscreen=false}
 		imgY1 = image.display{image=init, zoom=zoom, offscreen=false}
 		imgX1 = image.display{image=init, zoom=zoom, offscreen=false}
-		--[[
 		imgZ2 = image.display{image=init, zoom=zoom, offscreen=false}
 		imgY2 = image.display{image=init, zoom=zoom, offscreen=false}
 		imgX2 = image.display{image=init, zoom=zoom, offscreen=false}
@@ -218,11 +226,12 @@ function training()
 		epoch = 1
 		epochLosses = {}
 		batchLosses = {}
+		batchLossesMA = {}
 		n = 2000
 		
-		for i = 1, n, params.batchSize do 
+		for i = 1, n do 
 
-			xlua.progress(i,n)
+			xlua.progress(i*params.batchSize,n)
 			if not params.useThreads then 
 				local xBatchTensor = torch.Tensor(params.batchSize,1,params.sliceSize,params.sliceSize,params.sliceSize)
 				local yBatchTensor = torch.Tensor(params.batchSize,1)
@@ -246,10 +255,8 @@ function training()
 				predictions = model:forward(inputs)
 				loss = criterion:forward(predictions,targets)
 				dLoss_d0 = criterion:backward(predictions,targets)
-				print(loss)
-				logger:add{['loss'] = loss }
-
-
+				print(string.format("Average loss per example ==> %f", loss))
+				if params.log == 1 then logger:add{['loss'] = loss } end
 				model:backward(inputs, dLoss_d0)
 
 				return loss, gradParameters
@@ -257,22 +264,24 @@ function training()
 			end
 			-- Possibly improve this to take batch with large error more frequently
 			_, batchLoss = optimMethod(feval,parameters,optimState)
-			batchLosses[#batchLosses + 1] = batchLoss[1]/params.batchSize
-			
+			batchLosses[#batchLosses + 1] = batchLoss[1]
 			local batchLossesT = torch.Tensor(batchLosses)
 			local t = torch.range(1,batchLossesT:size()[1])
-			if i % 5 == 0 then
+			--Plot
+			if i % 10 == 0 then
 				gnuplot.figure(1)
-				ma = 20 
-				if batchLossesT:size()[1] > ma then print("Moving average of last "..ma.. " batches ==> " .. batchLossesT[{{-ma,-1}}]:mean()) end
-
 				gnuplot.plot({"Train loss",t,batchLossesT})
 			end
 
 
-			if params.display == 1 and displayTrue ~= nil and i % 10 == 0 then 
+			if i % 500  == 0 then
+				print("==> Saving weights")
+				torch.save("models/model1.model",model)
+			end
+
+			if params.display == 1 and displayTrue ~= nil and i % 5 == 0 then 
 				local idx = 1 
-				local class = "Class = " .. targets[1][1] .. ". Prediction = ".. predictions[1]
+				local class = "Class = " .. targets[1][1] .. ". Prediction = ".. predictions[1][1]
 
 				-- Display rotated images
 				-- Middle Slice
@@ -280,11 +289,11 @@ function training()
 				image.display{image = inputs[{{idx},{},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgY, legend = class}
 				image.display{image = inputs[{{idx},{},{},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgX, legend = class}
 				-- Slice + 1
+				--[[
 				image.display{image = inputs[{{idx},{},{params.sliceSize/2 +2}}]:reshape(params.sliceSize,params.sliceSize), win = imgZ1, legend = class}
 				image.display{image = inputs[{{idx},{},{},{params.sliceSize/2 +2}}]:reshape(params.sliceSize,params.sliceSize), win = imgY1, legend = class}
 				image.display{image = inputs[{{idx},{},{},{},{params.sliceSize/2 +2}}]:reshape(params.sliceSize,params.sliceSize), win = imgX1, legend = class}
 				-- Slice + 2 
-				--[[
 				image.display{image = inputs[{{idx},{},{params.sliceSize/2 }}]:reshape(params.sliceSize,params.sliceSize), win = imgZ2, legend = class}
 				image.display{image = inputs[{{idx},{},{},{params.sliceSize/2 }}]:reshape(params.sliceSize,params.sliceSize), win = imgY2, legend = class}
 				image.display{image = inputs[{{idx},{},{},{},{params.sliceSize/2 }}]:reshape(params.sliceSize,params.sliceSize), win = imgX2, legend = class}

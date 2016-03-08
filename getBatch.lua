@@ -1,4 +1,4 @@
-function getBatch(data,batchSize,xBatchTensor,yBatchTensor,sliceSize,clipMin,clipMax,angleMax,scalingFactor)
+function getBatch(data,batchSize,xBatchTensor,yBatchTensor,sliceSize,clipMin,clipMax,angleMax,scalingFactor,test)
 
 	-- For each image file in a batch. 1/ Load it 2/ Rotate it /3 Place it in batch tensor
 
@@ -8,7 +8,7 @@ function getBatch(data,batchSize,xBatchTensor,yBatchTensor,sliceSize,clipMin,cli
 		else
 			data:getNextCandidate()
 		end
-		local x = rotation3d(data, angleMax, sliceSize, clipMin, clipMax, scalingFactor):reshape(1,sliceSize,sliceSize,sliceSize)
+		local x = rotation3d(data, angleMax, sliceSize, clipMin, clipMax, scalingFactor, test):reshape(1,sliceSize,sliceSize,sliceSize)
 		local y = data.Class
 		xBatchTensor[i] = x 
 		yBatchTensor[i] = y 

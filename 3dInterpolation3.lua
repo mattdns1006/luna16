@@ -25,7 +25,7 @@ function rotationMatrix(angle)  --Returns a 3D rotation matrix
 	return rotMatrix
 end
 
-function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax, scalingFactor) -- Returns 3d interpolated image
+function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax, scalingFactor, test) -- Returns 3d interpolated image
 
 	--local imgOriginal = imgObject:loadImg(clipMin,clipMax,sliceSize)
 	
@@ -49,6 +49,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax, scalingFac
 
 	-- Rotated coords
 	-- Rotation matrix
+	if test == 1 then angleMax = 0 end 
 	local angle = torch.uniform(-angleMax,angleMax)
 	local rotMatrix = rotationMatrix(angle)
 
