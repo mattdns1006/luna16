@@ -9,6 +9,7 @@ threads = require "threads"
 dofile("imageCandidates.lua")
 dofile("3dInterpolation3.lua")
 dofile("getBatch.lua")
+dofile("binaryAccuracy.lua")
 models = require "models"
 shuffle = require "shuffle"
 
@@ -16,7 +17,7 @@ shuffle = require "shuffle"
 
 -- Model
 model = models.model1()
-modelName = "model2.model"
+modelName = "model5.model"
 model = torch.load("models/"..modelName)
 print("Model == >",model)
 
@@ -27,15 +28,15 @@ cmd = torch.CmdLine()
 cmd:text()
 cmd:text()
 cmd:text('Options')
-cmd:option('-lr',0.00003,'Learning rate')
+cmd:option('-lr',0.00002,'Learning rate')
 cmd:option('-momentum',0.95,'Momentum')
 cmd:option('-batchSize',8,'batchSize')
 cmd:option('-cuda',1,'CUDA')
-cmd:option('-sliceSize',42,"Length size of cube around nodule")
+cmd:option('-sliceSize',36,"Length size of cube around nodule")
 cmd:option('-angleMax',0.5,"Absolute maximum angle for rotating image")
-cmd:option('-scalingFactor',0.9,'Scaling factor for image')
+cmd:option('-scalingFactor',0.75,'Scaling factor for image')
 cmd:option('-clipMin',-1200,'Clip image below this value to this value')
-cmd:option('-clipMax',1000,'Clip image above this value to this value')
+cmd:option('-clipMax',1200,'Clip image above this value to this value')
 cmd:option('-useThreads',1,"Use threads or not") 
 cmd:option('-display',0,"Display images/plots") 
 cmd:option('-activations',0,"Show activations -- needs -display 1") 
@@ -121,7 +122,6 @@ task = string.format([[
 		C1 = Data:new("CSVFILES/candidatesClass1Test.csv",clipMin,clipMax,s)
 	else
 		print("==> Training")
-		-- Test
 		-- Else train
 		C0 = Data:new("CSVFILES/candidatesClass0Train.csv",clipMin,clipMax,s)
 		C1 = Data:new("CSVFILES/candidatesClass1Train.csv",clipMin,clipMax,s)
@@ -238,6 +238,7 @@ function training()
 		epochLosses = {}
 		batchLosses = {}
 		batchLossesMA = {}
+		accuraccies = {}
 		n = 20000000
 		
 		for i = 1, n do 
@@ -266,7 +267,6 @@ function training()
 				predictions = model:forward(inputs)
 				loss = criterion:forward(predictions,targets)
 				dLoss_d0 = criterion:backward(predictions,targets)
-				print(string.format("Average loss per example for iteration %d ==> %f",i, loss))
 				if params.log == 1 then logger:add{['loss'] = loss } end
 				model:backward(inputs, dLoss_d0)
 
@@ -275,11 +275,25 @@ function training()
 			end
 			-- Possibly improve this to take batch with large error more frequently
 			_, batchLoss = optimMethod(feval,parameters,optimState)
-			batchLosses[#batchLosses + 1] = batchLoss[1]
-			local batchLossesT = torch.Tensor(batchLosses)
+
+
+			-- Performance metrics
+			accuracy = binaryAccuracy(targets,predictions,params.cuda)
+			loss = criterion:forward(predictions,targets)
+
+			accuraccies[#accuraccies + 1] = accuracy
+			batchLosses[#batchLosses + 1] = loss 
+			accuracciesT = torch.Tensor(accuraccies)
+			batchLossesT = torch.Tensor(batchLosses)
 			local t = torch.range(1,batchLossesT:size()[1])
+			local ma = 10
+			if i > ma then 
+				print(string.format("Iteration %d. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ",
+				i, batchLossesT[{{-ma,-1}}]:mean(), accuracciesT[{{-ma,-1}}]:mean(),accuracciesT:mean()))
+			end
+
 			--Plot
-			if i % 10 == 0 then
+			if i % 30 == 0 then
 				gnuplot.figure(1)
 				gnuplot.plot({"Train loss",t,batchLossesT})
 			end
@@ -329,8 +343,11 @@ function training()
 end
 
 function testing()
-	batchLosses = {}
+	local batchLosses = {}
+	local accuraccies = {}
+	local i = 1
 	while true do
+		i = i + 1
 		if not params.useThreads then 
 			local xBatchTensor = torch.Tensor(params.batchSize,1,params.sliceSize,params.sliceSize,params.sliceSize)
 			local yBatchTensor = torch.Tensor(params.batchSize,1)
@@ -347,19 +364,21 @@ function testing()
 		end
 
 		predictions = model:forward(inputs)
+
+		accuracy = binaryAccuracy(targets,predictions,params.cuda)
 		loss = criterion:forward(predictions,targets)
+
+		accuraccies[#accuraccies + 1] = accuracy
 		batchLosses[#batchLosses + 1] = loss 
-		local batchLossesT = torch.Tensor(batchLosses)
-		local meanLoss = batchLossesT:mean()
-
-		--print("==>Loss " ..loss)
-		--print("==> Mean loss ".. meanLoss)
-		print("==> Mean accuracy " .. 1 - meanLoss^0.5)
+		accuracciesT = torch.Tensor(accuraccies)
+		batchLossesT = torch.Tensor(batchLosses)
 		local t = torch.range(1,batchLossesT:size()[1])
+		local ma = 10
+		if i > ma then 
+			print(string.format("Iteration %d. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ",
+			i, batchLossesT[{{-ma,-1}}]:mean(), accuracciesT[{{-ma,-1}}]:mean(),accuracciesT:mean()))
+		end
 
-		--Plot
-		gnuplot.figure(1)
-		gnuplot.plot({"Test loss",t,batchLossesT})
 	end
 end
  

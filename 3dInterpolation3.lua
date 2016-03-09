@@ -2,23 +2,21 @@ dofile("imageCandidates.lua")
 require "image"
 require "torch"
 
---[[
 cmdParams = torch.CmdLine()
 cmdParams:text()
 cmdParams:text()
 cmdParams:text('Options')
 cmdParams:option('-display',0,'Display images?')
-cmdParams:option('-displayZoom',0.4,'Image zoom size')
+cmdParams:option('-displayZoom',0.7,'Image zoom size')
 cmdParams:option('-runEg',0,'Run example')
-cmdParams:option('-sliceSize',40,'Slicesize')
+cmdParams:option('-sliceSize',280,'Slicesize')
 cmdParams:option('-clipMin',-1000,'Clipmin')
 cmdParams:option('-clipMax',1000,'Clipmin')
 cmdParams:option('-angleMax',0.8,'angleMax')
 cmdParams:option('-scalingFactor',0.8,'Scaling Factor')
 cmdParams:text()
-local parameters = cmdParams:parse(arg)
+parameters = cmdParams:parse(arg)
 parameters.rundir = cmdParams:string('parameters', parameters, {dir=true})
-]]--
 
 function rotationMatrix(angle)  --Returns a 3D rotation matrix
 	local rotMatrix = torch.Tensor{1,0,0,0,torch.cos(angle),-torch.sin(angle),0,torch.sin(angle),torch.cos(angle)}:reshape(3,3)
@@ -171,7 +169,6 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax, scalingFac
 
 	return imgInterpolate
 end
---[[
 --Example/Tests
 function eg3d()
 
@@ -184,9 +181,8 @@ function eg3d()
 	if displayTrue==nil and parameters.display==1 then
 		print("Initializing displays ==>")
 		local init = image.lena()
-		imgOrigX = image.display{image=init, zoom=imgOriginalZoom, offscreen=false}
+		--imgOrigX = image.display{image=init, zoom=imgOriginalZoom, offscreen=false}
 		local displayZoom = parameters.displayZoom
-		--[[
 		imgSubZ = image.display{image=init, zoom=displayZoom, offscreen=false}
 		imgSubY = image.display{image=init, zoom=displayZoom, offscreen=false}
 		imgSubX = image.display{image=init, zoom=displayZoom, offscreen=false}
@@ -196,25 +192,30 @@ function eg3d()
 		displayTrue = "Display initialized"
 	end
 	
-	data = Data:new("CSVFILES/candidatesClass1Train.csv",-1000,1000,96)
+	data = Data:new("CSVFILES/candidatesClass0Train.csv",-1000,1000,96)
 	data:getNewScan()
 
 	while true do
-		local imgInterpolate = rotation3d(data, parameters.angleMax, parameters.sliceSize, parameters.clipMin, parameters.clipMax, parameters.scalingFactor)
-		print(imgInterpolate:size())
+
 		if data.finishedScan == true then
 			print("getting new scan")
 			data:getNewScan()
 		else
 			data:getNextCandidate()
 		end
-		if parameters.display==1 then
-			image.display{image = imgInterpolate[1+parameters.sliceSize/2]:double(), win = imgInterpolateDisZ}
-			image.display{image = imgInterpolate[{{},{1+parameters.sliceSize/2}}]:reshape(parameters.sliceSize,parameters.sliceSize), win = imgInterpolateDisY}
-			image.display{image = imgInterpolate[{{},{},{1+parameters.sliceSize/2}}]:reshape(parameters.sliceSize,parameters.sliceSize), win = imgInterpolateDisX}
+		for i = 1, 20 do 
+			local imgInterpolate = rotation3d(data, parameters.angleMax, parameters.sliceSize, parameters.clipMin, parameters.clipMax, parameters.scalingFactor)
+			if parameters.display==1 then
+				image.display{image = imgInterpolate[1+parameters.sliceSize/2]:double(), win = imgInterpolateDisZ}
+				image.display{image = imgInterpolate[{{},{1+parameters.sliceSize/2}}]:reshape(parameters.sliceSize,parameters.sliceSize), win = imgInterpolateDisY}
+				image.display{image = imgInterpolate[{{},{},{1+parameters.sliceSize/2}}]:reshape(parameters.sliceSize,parameters.sliceSize), win = imgInterpolateDisX}
+
+				image.display{image = data.img[1+data.z]:reshape(512,512), win = imgSubZ}
+				image.display{image = data.img[{{},{1+data.y}}]:reshape(data.img:size()[1],512), win = imgSubY}
+				image.display{image = data.img[{{},{},{1+data.x}}]:reshape(data.img:size()[1],512), win = imgSubX}
+			end
 		end
 	end
 end
 if parameters.runEg == 1 then eg3d() end
-]]--
 
