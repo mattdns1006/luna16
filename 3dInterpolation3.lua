@@ -171,7 +171,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax, scalingFac
 
 	return imgInterpolate
 end
-
+--[[
 --Example/Tests
 function eg3d()
 
@@ -190,14 +190,13 @@ function eg3d()
 		imgSubZ = image.display{image=init, zoom=displayZoom, offscreen=false}
 		imgSubY = image.display{image=init, zoom=displayZoom, offscreen=false}
 		imgSubX = image.display{image=init, zoom=displayZoom, offscreen=false}
-		]]--
 		imgInterpolateDisZ = image.display{image=init, zoom=displayZoom, offscreen=false}
 		imgInterpolateDisY = image.display{image=init, zoom=displayZoom, offscreen=false}
 		imgInterpolateDisX = image.display{image=init, zoom=displayZoom, offscreen=false}
 		displayTrue = "Display initialized"
 	end
 	
-	data = Data:new("CSVFILES/candidatesClass0Train.csv",-1000,1000,96)
+	data = Data:new("CSVFILES/candidatesClass1Train.csv",-1000,1000,96)
 	data:getNewScan()
 
 	while true do
@@ -216,5 +215,6 @@ function eg3d()
 		end
 	end
 end
---if parameters.runEg == 1 then eg3d() end
+if parameters.runEg == 1 then eg3d() end
+]]--
 

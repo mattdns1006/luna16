@@ -42,7 +42,7 @@ function Data:getNewScan()
 	local obsNumber = torch.random(self.nScans)
 
 	--Get a random observation from the CSV
-	local i = 0
+	local i = 1 
 	self.scanName = {}
 	for k,_ in pairs(self.allScans) do 	
 		if i == obsNumber then
