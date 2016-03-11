@@ -15,5 +15,8 @@ if __name__ == "__main__":
 
         # Split training set into the two classes 
         train0, train1 = [train.loc[(train.Class==i)] for i in 0,1]
+        test0, test1 = [test.loc[(test.Class==i)] for i in 0,1]
         train0.to_csv("/home/msmith/luna16/CSVFILES/subset"+str(idx)+"/candidatesClass0Train.csv",index=0)
         train1.to_csv("/home/msmith/luna16/CSVFILES/subset"+str(idx)+"/candidatesClass1Train.csv",index=0)
+        test0.to_csv("/home/msmith/luna16/CSVFILES/subset"+str(idx)+"/candidatesClass0Test.csv",index=0)
+        test1.to_csv("/home/msmith/luna16/CSVFILES/subset"+str(idx)+"/candidatesClass1Test.csv",index=0)
