@@ -13,17 +13,7 @@ dofile("binaryAccuracy.lua")
 models = require "models"
 shuffle = require "shuffle"
 
------------------------------------------- GLobal vars/params ---------------------------------------- 
-
--- Model
-model = models.model1()
-modelName = "model5.model"
-model = torch.load("models/"..modelName)
-print("Model == >",model)
-
-criterion = nn.MSECriterion()
---criterion = nn.BCECriterion()
-
+------------------------------------------ GLobal vars/params -------------------------------------------
 cmd = torch.CmdLine()
 cmd:text()
 cmd:text()
@@ -43,13 +33,37 @@ cmd:option('-activations',0,"Show activations -- needs -display 1")
 cmd:option('-log',0,"Make log file in /Results/") 
 cmd:option('-train',0,'Train straight away')
 cmd:option('-test',0,"Test") 
+cmd:option('-loadModel',0,"Load model") 
+cmd:option('-para',0,"Are we using a parallel network? If bigger than 0 then this is equal to number of inputs. Otherwise input number is 1.") 
+-- K fold cv options
+cmd:option('-kFold',1,"Are we doing k fold? Default is to train on subsets 1-9 and test on subset0") 
+cmd:option('-fold',0,"Which fold to NOT train on") 
 --cmd:option('-loadModel',"model1.model","Load model") 
 cmd:text()
-
 params = cmd:parse(arg)
 params.model = model
 params.rundir = cmd:string('results', params, {dir=true})
+
+
+-------------------------------------------- Model ---------------------------------------------------------
+model = models.model5()
+if params.kFold == 1 then -- Are we doing k fold CV
+	--Save in models k fold
+	modelName = string.format("models/modelsKFoldCV/model5_k%d.model",params.fold)
+else 
+	modelName = "models/model6.model"
+end
+if params.loadModel == 1 then
+	print("==> Loading model "..modelName)
+	model = torch.load(modelName)
+end
+print("Model == >",model)
 print("==> Parameters",params)
+
+-------------------------------------------- Criterion & Activations ----------------------------------------
+criterion = nn.MSECriterion()
+--criterion = nn.BCECriterion()
+
 
 if params.log == 1 then  -- Log file
 	local logPath = "results/"..params.rundir
@@ -57,14 +71,13 @@ if params.log == 1 then  -- Log file
 	logger = optim.Logger(logPath.. '/results.log') 
 end
 
-
 --Show activations need first n layers
 if params.activations == 1 then
 	modelActivations1 = nn.Sequential()
 	for i=1,3 do modelActivations1:add(model:get(i)) end
 end
 
--- Optimizer
+-------------------------------------------- Optimization --------------------------------------------------
 optimState = {
 	learningRate = params.lr,
 	beta1 = 0.9,
@@ -79,9 +92,7 @@ if params.cuda == 1 then
 	print("==> Placed on GPU")
 end
 
--- Add confusion matrix -- TO DO
-
--- Load data
+-------------------------------------------- Threads -------------------------------------------------------
 
 trainingBatchSize= params.batchSize
 queueLength= 8 
@@ -112,26 +123,49 @@ task = string.format([[
 	local angleMax = %f	
 	local scalingFactor = %f
 	local test = %d
-
-	-- Training data sets split by class
-	-- Data:new(path,clipMin,clipMax,sliceSize)
-	if test == 1 then 
-		print("==> Testing")
-		-- Test
-		C0 = Data:new("CSVFILES/candidatesClass0Test.csv",clipMin,clipMax,s)
-		C1 = Data:new("CSVFILES/candidatesClass1Test.csv",clipMin,clipMax,s)
+	local kFold = %d
+	local fold = %d
+	local para = %d
+	-------------------------------------------- Parallel Table parameters --------------------------------------
+	if para == 0 then
+		paraTable = {}
 	else
-		print("==> Training")
-		-- Else train
-		C0 = Data:new("CSVFILES/candidatesClass0Train.csv",clipMin,clipMax,s)
-		C1 = Data:new("CSVFILES/candidatesClass1Train.csv",clipMin,clipMax,s)
+		paraTable = {0.7,0.9,1.3}
+	end
+
+	if kFold == 1 then 
+		if test == 1 then
+			trainTest = "Test"
+		else
+			trainTest = "Train"
+		end
+		print("==> k fold cross validation leaving subset "..fold.." out for testing")
+		local C0Path = "CSVFILES/subset"..fold.."/candidatesClass0"..trainTest..".csv"
+		local C1Path = "CSVFILES/subset"..fold.."/candidatesClass1"..trainTest..".csv"
+
+		print("==> "..trainTest.."ing on csv files; "..C0Path..", "..C1Path..".")
+		C0 = Data:new(C0Path,clipMin,clipMax,s)
+		C1 = Data:new(C1Path,clipMin,clipMax,s)
+
+	else	
+		-- Training data sets split by class
+		-- Data:new(path,clipMin,clipMax,sliceSize)
+		print("==> Not doing K fold cross validation, using normal train test data sets spread across all subsets")
+		if test == 1 then 
+			print("==> Testing")
+			-- Test
+			C0 = Data:new("CSVFILES/candidatesClass0Test.csv",clipMin,clipMax,s)
+			C1 = Data:new("CSVFILES/candidatesClass1Test.csv",clipMin,clipMax,s)
+		else
+			print("==> Training")
+			-- Else train
+			C0 = Data:new("CSVFILES/candidatesClass0Train.csv",clipMin,clipMax,s)
+			C1 = Data:new("CSVFILES/candidatesClass1Train.csv",clipMin,clipMax,s)
+		end
 	end
 	C0:getNewScan()
 	C1:getNewScan()
 	
-	-- Testing data sets split by class
-
-
 	while 1 do
 		local ok = false
 		local index = -1
@@ -158,15 +192,17 @@ task = string.format([[
 
 		-- With probability 0.5, 0.5 choose data from class 0 or class 1
 		if torch.uniform() < 0.5 then
-			getBatch(C0,trainingBatchSize,ourX,ourY,s,clipMin,clipMax,angleMax,scalingFactor,test)
+			getBatch(C0,trainingBatchSize,ourX,ourY,s,clipMin,clipMax,angleMax,scalingFactor,test,paraTable)
 		else
-			getBatch(C1,trainingBatchSize,ourX,ourY,s,clipMin,clipMax,angleMax,scalingFactor,test)
+			getBatch(C1,trainingBatchSize,ourX,ourY,s,clipMin,clipMax,angleMax,scalingFactor,test,paraTable)
 		end
 		g_mutex:lock()
 		g_MasterTensor[index*3]=3
 		g_mutex:unlock()
 	end
-]],g_mutex:id(),queueLength,tonumber(torch.data(g_MasterTensor,1)),trainingBatchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor,params.test)
+]],g_mutex:id(),queueLength,tonumber(torch.data(g_MasterTensor,1)),trainingBatchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor,params.test,params.kFold, params.fold, params.para)
+
+--[[
 if params.useThreads then 
 	print("==> Multithreading inputs")
 	threads.Thread(task)
@@ -174,10 +210,12 @@ if params.useThreads then
 	threads.Thread(task)
 	threads.Thread(task)
 end
+]]--
 
 function retrieveBatch()
 	local ok = false
 	local index = -1
+
 	while not ok do
 		g_mutex:lock()
 		for i=1,queueLength do
@@ -195,6 +233,7 @@ function retrieveBatch()
 			sys.sleep(0.1)
 		end
 	end	
+
 	local x = g_tensorsForQueue[2*index]
 	local y = g_tensorsForQueue[2*index-1]
 	g_mutex:lock()

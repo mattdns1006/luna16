@@ -2,22 +2,26 @@ dofile("imageCandidates.lua")
 require "image"
 require "torch"
 
+--[[
 cmdParams = torch.CmdLine()
 cmdParams:text()
 cmdParams:text()
 cmdParams:text('Options')
 cmdParams:option('-display',0,'Display images?')
-cmdParams:option('-displayZoom',0.7,'Image zoom size')
+cmdParams:option('-displayZoom',0.8,'Image zoom size')
 cmdParams:option('-runEg',0,'Run example')
-cmdParams:option('-sliceSize',280,'Slicesize')
-cmdParams:option('-clipMin',-1000,'Clipmin')
-cmdParams:option('-clipMax',1000,'Clipmin')
+cmdParams:option('-sliceSize',38,'Slicesize')
+cmdParams:option('-clipMin',-1200,'Clipmin')
+cmdParams:option('-clipMax',1200,'Clipmin')
 cmdParams:option('-angleMax',0.8,'angleMax')
-cmdParams:option('-scalingFactor',0.8,'Scaling Factor')
+cmdParams:option('-scalingFactor',1.2,'Scaling Factor')
 cmdParams:text()
 parameters = cmdParams:parse(arg)
 parameters.rundir = cmdParams:string('parameters', parameters, {dir=true})
+models = require "models"
+]]--
 
+--------------------------------------------------------- Rotation functions ---------------------------------------------------------------
 function rotationMatrix(angle)  --Returns a 3D rotation matrix
 	local rotMatrix = torch.Tensor{1,0,0,0,torch.cos(angle),-torch.sin(angle),0,torch.sin(angle),torch.cos(angle)}:reshape(3,3)
 	return rotMatrix
@@ -37,7 +41,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax, scalingFac
 	local yy = y:repeatTensor(zSize):sort():long():repeatTensor(xSize):double()
 	local xx = x:repeatTensor(zSize*ySize):sort():long():double()
 	local coords = torch.cat({xx:reshape(totSize,1),yy:reshape(totSize,1),zz:reshape(totSize,1)},2)
--- Translate coords to be about the origin i.e. mean subtract
+	-- Translate coords to be about the origin i.e. mean subtract
 	local translate = torch.ones(totSize,3):fill(-sliceSize/2)
 	coords:add(translate)
 
@@ -158,17 +162,12 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax, scalingFac
 
 	imgInterpolate:resize(xSize,ySize,zSize)
 
-	-- Mean remove and normalize between -1 +1 
+	-- Remove mean pixel value
 	imgInterpolate:add(-imgInterpolate:mean())
-	--[[
-	local min = imgInterpolate:min()
-	local range  = imgInterpolate:max()-min
-	imgInterpolate:add(-min)
-	imgInterpolate:mul(1.0/range)
-	]]--
 
 	return imgInterpolate
 end
+
 --Example/Tests
 function eg3d()
 
@@ -192,10 +191,20 @@ function eg3d()
 		displayTrue = "Display initialized"
 	end
 	
-	data = Data:new("CSVFILES/candidatesClass0Train.csv",-1000,1000,96)
-	data:getNewScan()
+	C0 = Data:new("CSVFILES/candidatesClass0Train.csv",parameters.clipMin,parameters.clipMax,parameters.sliceSize)
+	C1 = Data:new("CSVFILES/candidatesClass0Train.csv",parameters.clipMin,parameters.clipMax,parameters.sliceSize)
+	C0:getNewScan()
+	C1:getNewScan()
 
 	while true do
+
+		if torch.uniform() < 0.5 then
+			print("Getting scan from Class 0")
+			data = C0
+		else
+			print("Getting scan from Class 1")
+			data = C1
+		end
 
 		if data.finishedScan == true then
 			print("getting new scan")
@@ -217,5 +226,3 @@ function eg3d()
 		end
 	end
 end
-if parameters.runEg == 1 then eg3d() end
-
