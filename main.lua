@@ -27,7 +27,7 @@ cmd:option('-angleMax',0.5,"Absolute maximum angle for rotating image")
 cmd:option('-scalingFactor',0.75,'Scaling factor for image')
 cmd:option('-clipMin',-1200,'Clip image below this value to this value')
 cmd:option('-clipMax',1200,'Clip image above this value to this value')
-cmd:option('-useThreads',1,"Use threads or not") 
+cmd:option('-useThreads',0,"Use threads or not") 
 cmd:option('-display',0,"Display images/plots") 
 cmd:option('-activations',0,"Show activations -- needs -display 1") 
 cmd:option('-log',0,"Make log file in /Results/") 
@@ -35,6 +35,7 @@ cmd:option('-train',0,'Train straight away')
 cmd:option('-test',0,"Test") 
 cmd:option('-loadModel',0,"Load model") 
 cmd:option('-para',0,"Are we using a parallel network? If bigger than 0 then this is equal to number of inputs. Otherwise input number is 1.") 
+cmd:option('-nInputScalingFactors',3,"Number of input scaling factors.") 
 -- K fold cv options
 cmd:option('-kFold',1,"Are we doing k fold? Default is to train on subsets 1-9 and test on subset0") 
 cmd:option('-fold',0,"Which fold to NOT train on") 
@@ -46,7 +47,9 @@ params.rundir = cmd:string('results', params, {dir=true})
 
 
 -------------------------------------------- Model ---------------------------------------------------------
-model = models.model5()
+model = models.parallelNetwork()
+--model = models.model5()
+--[[
 if params.kFold == 1 then -- Are we doing k fold CV
 	--Save in models k fold
 	modelName = string.format("models/modelsKFoldCV/model5_k%d.model",params.fold)
@@ -57,6 +60,7 @@ if params.loadModel == 1 then
 	print("==> Loading model "..modelName)
 	model = torch.load(modelName)
 end
+]]--
 print("Model == >",model)
 print("==> Parameters",params)
 
@@ -95,12 +99,20 @@ end
 -------------------------------------------- Threads -------------------------------------------------------
 
 trainingBatchSize= params.batchSize
-queueLength= 8 
+queueLength= 1 
 g_mutex=threads.Mutex()
 g_tensorsForQueue={}
+g_tensorsForQueue2={}
 g_MasterTensor = torch.LongTensor(3*queueLength) --first 2 begin and end of queue
 for i = 1,queueLength do
-	g_tensorsForQueue[2*i]=torch.LongTensor(trainingBatchSize,1,params.sliceSize,params.sliceSize,params.sliceSize)
+--	g_tensorsForQueue[2*i]=torch.LongTensor(trainingBatchSize,1,params.sliceSize,params.sliceSize,params.sliceSize)
+	g_tensorsForQueue[2*i]=torch.LongTensor(params.nInputScalingFactors)
+	g_tensorsForQueue2[i]={}
+	for j = 1, params.nInputScalingFactors do
+	   local t = torch.LongTensor(trainingBatchSize,1,params.sliceSize,params.sliceSize,params.sliceSize)
+	   g_tensorsForQueue2[i][j]=t
+	   g_tensorsForQueue[2*i][j]=tonumber(torch.data(t,1))
+	end
 	g_tensorsForQueue[2*i-1]=torch.Tensor(trainingBatchSize,1)
 	g_MasterTensor[3*i-1]=tonumber(torch.data(g_tensorsForQueue[2*i],1))
 	g_MasterTensor[3*i-2]=tonumber(torch.data(g_tensorsForQueue[2*i-1],1))
@@ -117,54 +129,17 @@ task = string.format([[
 	local queueLength = %d
 	local g_MasterTensor = torch.LongTensor(torch.LongStorage(queueLength*3,%d))
 	local trainingBatchSize = %d
-	local s = %d -- SliceSize
-	local clipMin = %d	
-	local clipMax = %d	
-	local angleMax = %f	
-	local scalingFactor = %f
-	local test = %d
-	local kFold = %d
-	local fold = %d
-	local para = %d
-	-------------------------------------------- Parallel Table parameters --------------------------------------
-	if para == 0 then
-		paraTable = {}
-	else
-		paraTable = {0.7,0.9,1.3}
-	end
-
-	if kFold == 1 then 
-		if test == 1 then
-			trainTest = "Test"
-		else
-			trainTest = "Train"
-		end
-		print("==> k fold cross validation leaving subset "..fold.." out for testing")
-		local C0Path = "CSVFILES/subset"..fold.."/candidatesClass0"..trainTest..".csv"
-		local C1Path = "CSVFILES/subset"..fold.."/candidatesClass1"..trainTest..".csv"
-
-		print("==> "..trainTest.."ing on csv files; "..C0Path..", "..C1Path..".")
-		C0 = Data:new(C0Path,clipMin,clipMax,s)
-		C1 = Data:new(C1Path,clipMin,clipMax,s)
-
-	else	
-		-- Training data sets split by class
-		-- Data:new(path,clipMin,clipMax,sliceSize)
-		print("==> Not doing K fold cross validation, using normal train test data sets spread across all subsets")
-		if test == 1 then 
-			print("==> Testing")
-			-- Test
-			C0 = Data:new("CSVFILES/candidatesClass0Test.csv",clipMin,clipMax,s)
-			C1 = Data:new("CSVFILES/candidatesClass1Test.csv",clipMin,clipMax,s)
-		else
-			print("==> Training")
-			-- Else train
-			C0 = Data:new("CSVFILES/candidatesClass0Train.csv",clipMin,clipMax,s)
-			C1 = Data:new("CSVFILES/candidatesClass1Train.csv",clipMin,clipMax,s)
-		end
-	end
-	C0:getNewScan()
-	C1:getNewScan()
+	s = %d -- SliceSize
+	clipMin = %d	
+	clipMax = %d	
+	angleMax = %f	
+	scalingFactor = %f
+	test = %d
+	kFold = %d
+	fold = %d
+	para = %d
+        nInputScalingFactors = %d
+	dofile("loadData.lua")
 	
 	while 1 do
 		local ok = false
@@ -187,7 +162,13 @@ task = string.format([[
 				sys.sleep(0.1)
 			end
 		end	
-		local ourX = torch.LongTensor(torch.LongStorage(trainingBatchSize*s*s*s,g_MasterTensor[3*index-1])):resize(trainingBatchSize,1,s,s,s)
+		print("writing ",index)
+--		local ourX = torch.LongTensor(torch.LongStorage(trainingBatchSize*s*s*s,g_MasterTensor[3*index-1])):resize(trainingBatchSize,1,s,s,s)
+                local ourX = {}
+                local ourXAddresses = torch.LongTensor(torch.LongStorage(nInputScalingFactors,g_MasterTensor[3*index-1]))
+                for iScaling = 1, nInputScalingFactors do
+		    ourX[iScaling] = torch.LongTensor(torch.LongStorage(trainingBatchSize*s*s*s,ourXAddresses[iScaling])):resize(trainingBatchSize,1,s,s,s)
+		end
 		local ourY = torch.Tensor(torch.Storage(trainingBatchSize,g_MasterTensor[3*index-2])):resize(trainingBatchSize,1)
 
 		-- With probability 0.5, 0.5 choose data from class 0 or class 1
@@ -199,18 +180,14 @@ task = string.format([[
 		g_mutex:lock()
 		g_MasterTensor[index*3]=3
 		g_mutex:unlock()
+		print("written")
 	end
-]],g_mutex:id(),queueLength,tonumber(torch.data(g_MasterTensor,1)),trainingBatchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor,params.test,params.kFold, params.fold, params.para)
+]],g_mutex:id(),queueLength,tonumber(torch.data(g_MasterTensor,1)),trainingBatchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor,params.test,params.kFold, params.fold, params.para, params.nInputScalingFactors)
 
---[[
 if params.useThreads then 
 	print("==> Multithreading inputs")
 	threads.Thread(task)
-	threads.Thread(task)
-	threads.Thread(task)
-	threads.Thread(task)
 end
-]]--
 
 function retrieveBatch()
 	local ok = false
@@ -234,7 +211,10 @@ function retrieveBatch()
 		end
 	end	
 
-	local x = g_tensorsForQueue[2*index]
+--	local x = g_tensorsForQueue[2*index]
+	local x = g_tensorsForQueue2[index]
+	print("retrieving ",index)
+	print(type(x))
 	local y = g_tensorsForQueue[2*index-1]
 	g_mutex:lock()
 
@@ -287,14 +267,18 @@ function training()
 				local xBatchTensor = torch.Tensor(params.batchSize,1,params.sliceSize,params.sliceSize,params.sliceSize)
 				local yBatchTensor = torch.Tensor(params.batchSize,1)
 
-				getBatch(train,params.batchSize,xBatchTensor,yBatchTensor,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor)
+				getBatch(train,params.batchSize,xBatchTensor,yBatchTensor,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor,params.test,params.kFold, params.fold, params.para, params.nInputScalingFactors)
+
+
 				inputs, targets = xBatchTensor, yBatchTensor
 			else 
 				inputs, targets = retrieveBatch()
 			end 
 
 			if params.cuda == 1 then
-				inputs = inputs:cuda()
+				for k,v in pairs(inputs) do
+					inputs[k] = v:cuda()
+				end
 				targets = targets:cuda()
 			end
 				
@@ -303,8 +287,11 @@ function training()
 
 				gradParameters:zero()
 
+				--print("Forward")
+				--print("Inputs",inputs,inputs[1][1][1][1][1][1],inputs[2][1][1][1][1][1],inputs[3][1][1][1][1][1])
 				predictions = model:forward(inputs)
 				loss = criterion:forward(predictions,targets)
+				--print("Backward")
 				dLoss_d0 = criterion:backward(predictions,targets)
 				if params.log == 1 then logger:add{['loss'] = loss } end
 				model:backward(inputs, dLoss_d0)
