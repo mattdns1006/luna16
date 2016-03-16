@@ -18,7 +18,7 @@ cmd = torch.CmdLine()
 cmd:text()
 cmd:text()
 cmd:text('Options')
-cmd:option('-lr',0.00002,'Learning rate')
+cmd:option('-lr',0.0004,'Learning rate')
 cmd:option('-momentum',0.95,'Momentum')
 cmd:option('-batchSize',1,'batchSize')
 cmd:option('-cuda',1,'CUDA')
@@ -47,7 +47,7 @@ params.rundir = cmd:string('results', params, {dir=true})
 
 
 -------------------------------------------- Model ---------------------------------------------------------
-modelName = "/models/para1.model"
+modelPath = "models/para1.model"
 model = models.parallelNetwork()
 print("Model == >",model)
 print("==> Parameters",params)
@@ -89,7 +89,7 @@ end
 if params.para == 0 then
 	params.para = {}
 else
-	params.para = {0.7,0.9,1.3}
+	params.para = {0.7,0.8,1.4}
 end
 print("Input scaling factors")
 print(params.para)
@@ -115,7 +115,12 @@ function getBatch(data1,data2,batchSize,sliceSize,clipMin,clipMax,angleMax,scali
 	X = {}
 	y = torch.Tensor(batchSize,1)
 	for i=1, batchSize do
-		if torch.uniform() < 0.5 then data = data1 else data = data2 end
+		if torch.uniform() < 0.5 then 
+			data = data1 
+		else 
+			data = data2 
+		end
+		
 		if data.finishedScan == true then
 			data:getNewScan()
 		else
@@ -145,7 +150,16 @@ print(start:time().real)
 
 function training()
 
-	if i~= nil then i = 1 end
+	if i == nil then 
+		print("==> Initalizing training")
+		i = 1 
+		epochLosses = {}
+		batchLosses = {}
+		batchLossesMA = {}
+		accuraccies = {}
+		if model then parameters,gradParameters = model:getParameters() end
+		lrChangeThresh = 0.7
+	end
 	
 	if displayTrue==nil and params.display==1 then
 		print("Initializing displays ==>")
@@ -168,14 +182,6 @@ function training()
 		end
 		displayTrue = "not nil"
 	end
-
-
-	if model then parameters,gradParameters = model:getParameters() end
-
-	epochLosses = {}
-	batchLosses = {}
-	batchLossesMA = {}
-	accuraccies = {}
 
 	while true do
 
@@ -214,8 +220,15 @@ function training()
 		local t = torch.range(1,batchLossesT:size()[1])
 		local ma = 10
 		if i > ma then 
+			accMa = accuracciesT[{{-ma,-1}}]:mean()
 			print(string.format("Iteration %d. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ",
-			i, batchLossesT[{{-ma,-1}}]:mean(), accuracciesT[{{-ma,-1}}]:mean(),accuracciesT:mean()))
+			i, batchLossesT[{{-ma,-1}}]:mean(), accMa,accuracciesT:mean()))
+			if accMa > lrChangeThresh then
+				print("==> Dropping lr from ",params.lr)
+				params.lr = params.lr/3
+				print("==> to",params.lr)
+				lrChangeThresh = lrChangeThresh + 0.1
+			end
 		end
 
 		--Plot
@@ -225,12 +238,12 @@ function training()
 		end
 
 
-		if i % 100 == 0 then
-			print("==> Saving weights for ".. modelName)
-			torch.save("models/"..modelName,model)
+		if i % 200 == 0 then
+			print("==> Saving weights for ".. modelPath)
+			torch.save(modelPath,model)
 		end
 
-		if params.display == 1 and displayTrue ~= nil and i % 5 == 0 then 
+		if params.display == 1 and displayTrue ~= nil and i % 10 == 0 then 
 			local idx = 1 
 			local class = "Class = " .. targets[1][1] .. ". Prediction = ".. predictions[1]
 
@@ -265,28 +278,31 @@ function training()
 end
 
 function testing()
-	local batchLosses = {}
-	local accuraccies = {}
-	local i = 1
-	while true do
-		i = i + 1
-		if not params.useThreads then 
-			local xBatchTensor = torch.Tensor(params.batchSize,1,params.sliceSize,params.sliceSize,params.sliceSize)
-			local yBatchTensor = torch.Tensor(params.batchSize,1)
+	modelPath = "models/para1.model"
+	model = torch.load(modelPath)	
+	print("==> Loading model for testing")
+	print(model)
 
-			getBatch(train,params.batchSize,xBatchTensor,yBatchTensor,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor)
-			inputs, targets = xBatchTensor, yBatchTensor
-		else 
-			inputs, targets = retrieveBatch()
-		end 
+	if i == nil then 
+		print("==> Initalizing training")
+		i = 1 
+		epochLosses = {}
+		batchLosses = {}
+		batchLossesMA = {}
+		accuraccies = {}
+	end
+
+	while true do
+
+		inputs,targets = getBatch(C0,C1,params.batchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor,params.test,params.para)
 
 		if params.cuda == 1 then
-			inputs = inputs:cuda()
 			targets = targets:cuda()
 		end
+		predictions = model:forward(inputs[1])
+		loss = criterion:forward(predictions,targets)
 
-		predictions = model:forward(inputs)
-
+		-- Performance metrics
 		accuracy = binaryAccuracy(targets,predictions,params.cuda)
 		loss = criterion:forward(predictions,targets)
 
@@ -297,10 +313,17 @@ function testing()
 		local t = torch.range(1,batchLossesT:size()[1])
 		local ma = 10
 		if i > ma then 
+			accMa = accuracciesT[{{-ma,-1}}]:mean()
 			print(string.format("Iteration %d. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ",
-			i, batchLossesT[{{-ma,-1}}]:mean(), accuracciesT[{{-ma,-1}}]:mean(),accuracciesT:mean()))
+			i, batchLossesT[{{-ma,-1}}]:mean(), accMa,accuracciesT:mean()))
 		end
 
+		--Plot
+		if i % 30 == 0 then
+			gnuplot.figure(1)
+			gnuplot.plot({"Test loss",t,batchLossesT})
+		end
+		i = i + 1
 	end
 end
  
@@ -310,7 +333,50 @@ elseif params.test == 1 then
 	testing()
 end
 
+--[[
+Threads = require 'threads'
+Threads.serialization('threads.sharedserialize')
+nThreads = 6 
+opt = {}
+do
+	local options = opt -- make an upvalue to serialize over to donkey threads
+	donkeys = Threads(
+		nThreads,
+		function()
+			require 'torch'
+		end,
+		function(idx)
+			opt = options -- pass to all donkeys via upvalue
+			loadData = require "loadData"
+			loadData.Init()
+			print("initialization")
+		end
+		)
+end
 
+X = {}
+Y = {}
+donkeys:synchronize()
+
+time = torch.Timer()
+time2 = torch.Timer()
+for i = 1, 100 do
+	donkeys:addjob(function()
+				x,y = loadData.getBatch(C0,C1,1,36,-1200,1200,0.4,0.3,0,params.para)
+				--x,y = torch.random(), torch.uniform()
+				return x,y
+			end,
+			function(x,y)
+				X = x
+				Y = y
+			end
+			)
+	print(Y)
+	print(time:time().real)
+	time:reset()
+end
+print(time2:time().real)
+]]--
 
 
 
