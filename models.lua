@@ -44,7 +44,7 @@ end
 
 function miniNetwork()
 	local model = nn.Sequential()
-	nFiltersInc = 96 
+	nFiltersInc = 32 
 	nFilters = {1,nFiltersInc,nFiltersInc*2,nFiltersInc*3,nFiltersInc*4}
 	filterSizeConv = {3,3,3,3,3}
 	strideConv = {1,1,1,1,1}

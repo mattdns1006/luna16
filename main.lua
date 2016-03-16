@@ -129,17 +129,56 @@ task = string.format([[
 	local queueLength = %d
 	local g_MasterTensor = torch.LongTensor(torch.LongStorage(queueLength*3,%d))
 	local trainingBatchSize = %d
-	s = %d -- SliceSize
-	clipMin = %d	
-	clipMax = %d	
-	angleMax = %f	
-	scalingFactor = %f
-	test = %d
-	kFold = %d
-	fold = %d
-	para = %d
-        nInputScalingFactors = %d
-	dofile("loadData.lua")
+	local s = %d -- SliceSize
+	local clipMin = %d	
+	local clipMax = %d	
+	local angleMax = %f	
+	local scalingFactor = %f
+	local test = %d
+	local kFold = %d
+	local fold = %d
+	local para = %d
+        local nInputScalingFactors = %d
+
+	-------------------------------------------- Parallel Table parameters --------------------------------------
+	if para == 0 then
+		paraTable = {}
+	else
+		paraTable = {0.7,0.9,1.3}
+	end
+
+	if kFold == 1 then 
+		if test == 1 then
+			trainTest = "Test"
+		else
+			trainTest = "Train"
+		end
+		print("==> k fold cross validation leaving subset "..fold.." out for testing")
+		local C0Path = "CSVFILES/subset"..fold.."/candidatesClass0"..trainTest..".csv"
+		local C1Path = "CSVFILES/subset"..fold.."/candidatesClass1"..trainTest..".csv"
+
+		print("==> "..trainTest.."ing on csv files; "..C0Path..", "..C1Path..".")
+		C0 = Data:new(C0Path,clipMin,clipMax,s)
+		C1 = Data:new(C1Path,clipMin,clipMax,s)
+
+	else	
+		-- Training data sets split by class
+		-- Data:new(path,clipMin,clipMax,sliceSize)
+		print("==> Not doing K fold cross validation, using normal train test data sets spread across all subsets")
+		if test == 1 then 
+			print("==> Testing")
+			-- Test
+			C0 = Data:new("CSVFILES/candidatesClass0Test.csv",clipMin,clipMax,s)
+			C1 = Data:new("CSVFILES/candidatesClass1Test.csv",clipMin,clipMax,s)
+		else
+			print("==> Training")
+			-- Else train
+			C0 = Data:new("CSVFILES/candidatesClass0Train.csv",clipMin,clipMax,s)
+			C1 = Data:new("CSVFILES/candidatesClass1Train.csv",clipMin,clipMax,s)
+		end
+	end
+	C0:getNewScan()
+	C1:getNewScan()
 	
 	while 1 do
 		local ok = false
@@ -287,11 +326,11 @@ function training()
 
 				gradParameters:zero()
 
-				--print("Forward")
-				--print("Inputs",inputs,inputs[1][1][1][1][1][1],inputs[2][1][1][1][1][1],inputs[3][1][1][1][1][1])
+				print("Forward")
+				print("Inputs",inputs,inputs[1][1][1][1][1][1],inputs[2][1][1][1][1][1],inputs[3][1][1][1][1][1])
 				predictions = model:forward(inputs)
 				loss = criterion:forward(predictions,targets)
-				--print("Backward")
+				print("Backward")
 				dLoss_d0 = criterion:backward(predictions,targets)
 				if params.log == 1 then logger:add{['loss'] = loss } end
 				model:backward(inputs, dLoss_d0)

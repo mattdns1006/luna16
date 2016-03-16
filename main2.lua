@@ -47,7 +47,7 @@ params.rundir = cmd:string('results', params, {dir=true})
 
 
 -------------------------------------------- Model ---------------------------------------------------------
-modelPath = "models/para1.model"
+modelPath = "models/para2.model"
 model = models.parallelNetwork()
 print("Model == >",model)
 print("==> Parameters",params)
@@ -85,70 +85,31 @@ end
 -------------------------------------------- Parallel Table parameters --------------------------------------
 
 
--------------------------------------------- Loading data ---------------------------------------------------
-if params.para == 0 then
-	params.para = {}
-else
-	params.para = {0.7,0.8,1.4}
-end
-print("Input scaling factors")
-print(params.para)
-if params.kFold == 1 then 
-	if params.test == 1 then
-		trainTest = "Test"
-	else
-		trainTest = "Train"
-	end
-	print("==> k fold cross validation leaving subset "..params.fold.." out for testing")
-	local C0Path = "CSVFILES/subset"..params.fold.."/candidatesClass0"..trainTest..".csv"
-	local C1Path = "CSVFILES/subset"..params.fold.."/candidatesClass1"..trainTest..".csv"
-
-	print("==> "..trainTest.."ing on csv files; "..C0Path..", "..C1Path..".")
-	C0 = Data:new(C0Path,params.clipMin,params.clipMax,params.sliceSize)
-	C1 = Data:new(C1Path,params.clipMin,params.clipMax,params.sliceSize)
-end
-C0:getNewScan()
-C1:getNewScan()
-
-function getBatch(data1,data2,batchSize,sliceSize,clipMin,clipMax,angleMax,scalingFactor,test,para)
-	--Make empty table to loop into
-	X = {}
-	y = torch.Tensor(batchSize,1)
-	for i=1, batchSize do
-		if torch.uniform() < 0.5 then 
-			data = data1 
-		else 
-			data = data2 
+-------------------------------------------- Loading data with threads ---------------------------------------------------
+Threads = require 'threads'
+Threads.serialization('threads.sharedserialize')
+local nThreads = 4 
+print(string.format("==> Using %d threads ",nThreads))
+do
+	local options = params -- make an upvalue to serialize over to donkey threads
+	donkeys = Threads(
+		nThreads,
+		function()
+			require 'torch'
+		end,
+		function(idx)
+			print("==> Initializing threads.")
+			params = options -- pass to all donkeys via upvalue
+			loadData = require "loadData"
+			loadData.Init()
+			print("==> Initialized.")
 		end
-		
-		if data.finishedScan == true then
-			data:getNewScan()
-		else
-			data:getNextCandidate()
-		end
-
-		if #para>1 then
-
-			x = {}
-			X[i] = x
-			for iScaling =1, #para do
-			   x[iScaling] = rotation3d(data, angleMax, sliceSize, clipMin, clipMax, para[iScaling] , test):reshape(1,1,sliceSize,sliceSize,sliceSize):cuda()
-		  	 end
-		else 
-			X[i] = rotation3d(data, angleMax, sliceSize, clipMin, clipMax, scalingFactor, test):reshape(1,1,sliceSize,sliceSize,sliceSize)
-		end
-		y[i] = data.Class
-	end
-	collectgarbage()
-	return X,y
+		)
 end
 
-start = torch:Timer()
-x,y = getBatch(C0,C1,params.batchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor,params.test,params.para)
-print(start:time().real)
 
 
-function training()
+function training(inputs,targets)
 
 	if i == nil then 
 		print("==> Initalizing training")
@@ -183,9 +144,10 @@ function training()
 		displayTrue = "not nil"
 	end
 
-	while true do
+	--while true do
 
-		inputs,targets = getBatch(C0,C1,params.batchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor,params.test,params.para)
+
+		--inputs,targets = getBatch(C0,C1,params.batchSize,params.sliceSize,params.clipMin,params.clipMax,params.angleMax,params.scalingFactor,params.test,params.para)
 
 		if params.cuda == 1 then
 			targets = targets:cuda()
@@ -274,7 +236,7 @@ function training()
 
 		i = i + 1
 		collectgarbage()
-	end
+	--end
 end
 
 function testing()
@@ -327,56 +289,18 @@ function testing()
 	end
 end
  
-if params.train == 1 then
-	training()
-elseif params.test == 1 then
-	testing()
-end
-
---[[
-Threads = require 'threads'
-Threads.serialization('threads.sharedserialize')
-nThreads = 6 
-opt = {}
-do
-	local options = opt -- make an upvalue to serialize over to donkey threads
-	donkeys = Threads(
-		nThreads,
-		function()
-			require 'torch'
-		end,
-		function(idx)
-			opt = options -- pass to all donkeys via upvalue
-			loadData = require "loadData"
-			loadData.Init()
-			print("initialization")
-		end
-		)
-end
-
-X = {}
-Y = {}
-donkeys:synchronize()
-
-time = torch.Timer()
-time2 = torch.Timer()
-for i = 1, 100 do
+inputs = {}
+targets = {}
+while true do 
 	donkeys:addjob(function()
-				x,y = loadData.getBatch(C0,C1,1,36,-1200,1200,0.4,0.3,0,params.para)
-				--x,y = torch.random(), torch.uniform()
+				x,y = loadData.getBatch(C0,C1,params.batchSize,params.sliceSize,params.clipMin,
+				params.clipMax,params.angleMax,params.scalingFactor,params.test,params.para)
 				return x,y
 			end,
 			function(x,y)
-				X = x
-				Y = y
+				training(x,y)
 			end
 			)
-	print(Y)
-	print(time:time().real)
-	time:reset()
 end
-print(time2:time().real)
-]]--
-
-
+donkeys:synchronize()
 

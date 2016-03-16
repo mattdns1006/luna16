@@ -118,9 +118,3 @@ function Data:getNextCandidate()
 
 end
 
---[[
---example
-C0 = Csv:new("CSVFILES/candidatesClass0Test.csv",-1000,1000,48)
-C0:getNewScan()
-C0:getNextCandidate()
-]]--
