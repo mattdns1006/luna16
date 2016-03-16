@@ -6,9 +6,6 @@ require "torch"
 require "xlua"
 require "gnuplot"
 threads = require "threads"
-dofile("imageCandidates.lua")
-dofile("3dInterpolation3.lua")
-dofile("getBatch.lua")
 dofile("binaryAccuracy.lua")
 models = require "models"
 shuffle = require "shuffle"
@@ -21,12 +18,14 @@ cmd:text()
 cmd:text()
 cmd:text('Options')
 cmd:option('-lr',0.0004,'Learning rate')
+cmd:option('-lrW',1.2,'Learning rate decay')
 cmd:option('-momentum',0.95,'Momentum')
 cmd:option('-batchSize',1,'batchSize')
 cmd:option('-cuda',1,'CUDA')
 cmd:option('-sliceSize',36,"Length size of cube around nodule")
 cmd:option('-angleMax',0.5,"Absolute maximum angle for rotating image")
 cmd:option('-scalingFactor',0.75,'Scaling factor for image')
+cmd:option('-scalingFactorVar',0.01,'Scaling factor variance for image')
 cmd:option('-clipMin',-1200,'Clip image below this value to this value')
 cmd:option('-clipMax',1200,'Clip image above this value to this value')
 cmd:option('-nThreads',4,"How many threads to load/preprocess data with?") 
@@ -49,8 +48,14 @@ params.model = model
 params.rundir = cmd:string('results', params, {dir=true})
 
 -------------------------------------------- Model ---------------------------------------------------------
-modelPath = "models/para3.model"
-model = models.parallelNetwork()
+modelPath = "models/para5.model"
+if params.loadModel == 1 then 
+	print("==> Loading model weights ")
+	model = torch.load(modelPath)
+else 
+	print("==> New model")
+	model = models.parallelNetwork()
+end
 print("Model == >",model)
 print("==> Parameters",params)
 
@@ -86,12 +91,10 @@ if params.cuda == 1 then
 end
 -------------------------------------------- Parallel Table parameters -------------------------------------------
 
-if params.para == 0 then
-	params.scalingFactor = params.scalingFactor 
-	params.angleMax = params.angleMax
-else
-	params.scalingFactor = {0.7,0.8,2.8}
-	params.angleMax = {0.5,0.5,0.001}
+if params.para > 0 then
+	params.scalingFactor = {0.55,1,3}
+	params.scalingFactorVar = {0.1,0.01,0.001}
+	params.angleMax = {0.9,0.5,0.001}
 end
 -------------------------------------------- Loading data with threads ---------------------------------------------------
 
@@ -112,21 +115,7 @@ do
 		end
 		)
 end
-
-function train(inputs,targets)
-
-	if i == nil then 
-		print("==> Initalizing training")
-		i = 1 
-		epochLosses = {}
-		batchLosses = {}
-		batchLossesMA = {}
-		accuraccies = {}
-		if model then parameters,gradParameters = model:getParameters() end
-		lrChangeThresh = 0.7
-		timer = torch.Timer()
-	end
-	
+function displayImageInit()
 	if displayTrue==nil and params.display==1 then
 		print("Initializing displays ==>")
 		zoom = 0.6
@@ -148,8 +137,47 @@ function train(inputs,targets)
 		end
 		displayTrue = "not nil"
 	end
+end
+function displayImage(inputs,targets,predictions,idx)
+		local class = "Class = " .. targets[1][1] .. ". Prediction = ".. predictions[1]
+		-- Display rotated images
+		-- Middle Slice
+		image.display{image = inputs[1][1][{{idx},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgZ, legend = class}
+		image.display{image = inputs[1][2][{{idx},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgY, legend = class}
+		image.display{image = inputs[1][3][{{idx},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgX, legend = class}
+		-- Slice + 1
+		--[[
+		image.display{image = inputs[{{idx},{},{params.sliceSize/2 +2}}]:reshape(params.sliceSize,params.sliceSize), win = imgZ1, legend = class}
+		image.display{image = inputs[{{idx},{},{},{params.sliceSize/2 +2}}]:reshape(params.sliceSize,params.sliceSize), win = imgY1, legend = class}
+		image.display{image = inputs[{{idx},{},{},{},{params.sliceSize/2 +2}}]:reshape(params.sliceSize,params.sliceSize), win = imgX1, legend = class}
+		-- Slice + 2 
+		image.display{image = inputs[{{idx},{},{params.sliceSize/2 }}]:reshape(params.sliceSize,params.sliceSize), win = imgZ2, legend = class}
+		image.display{image = inputs[{{idx},{},{},{params.sliceSize/2 }}]:reshape(params.sliceSize,params.sliceSize), win = imgY2, legend = class}
+		image.display{image = inputs[{{idx},{},{},{},{params.sliceSize/2 }}]:reshape(params.sliceSize,params.sliceSize), win = imgX2, legend = class}
+		]]--
 
+		-- Display first layer activtion plane. Draw one activation plane at random and slice on first (z) dimension.
+		if params.activations == 1 then 
+			local activations1 = modelActivations1:forward(inputs)
+			local randomFeat1 = torch.random(1,modelActivations1:get(2).nOutputPlane)
+			image.display{image = activations1[{{1},{randomFeat1},{params.sliceSize/2}}]:reshape(params.sliceSize,params.sliceSize), win = activationDisplay1, legend = "Activations"}
+		end
+end
 
+function train(inputs,targets)
+
+	if i == nil then 
+		print("==> Initalizing training")
+		i = 1 
+		epochLosses = {}
+		batchLosses = {}
+		batchLossesMA = {}
+		accuraccies = {}
+		if model then parameters,gradParameters = model:getParameters() end
+		lrChangeThresh = 0.7
+		timer = torch.Timer()
+	end
+	
 	if params.cuda == 1 then
 		targets = targets:cuda()
 	end
@@ -180,21 +208,15 @@ function train(inputs,targets)
 	accuracciesT = torch.Tensor(accuraccies)
 	batchLossesT = torch.Tensor(batchLosses)
 	local t = torch.range(1,batchLossesT:size()[1])
-	local ma = 10
+	local ma = 15 
 	if i > ma then 
 		accMa = accuracciesT[{{-ma,-1}}]:mean()
-		print(string.format("Iteration %d. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ",
-		i, batchLossesT[{{-ma,-1}}]:mean(), accMa,accuracciesT:mean()))
-		if accMa > lrChangeThresh then
-			print("==> Dropping lr from ",params.lr)
-			params.lr = params.lr/3
-			print("==> to",params.lr)
-			lrChangeThresh = lrChangeThresh + 0.1
-		end
+		print(string.format("Iteration %d accuracy= %f. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ",
+		i, accuracy, batchLossesT[{{-ma,-1}}]:mean(), accMa,accuracciesT:mean()))
 	end
 
 	--Plot
-	if i % 30 == 0 then
+	if i % 50 == 0 then
 		gnuplot.figure(1)
 		gnuplot.plot({"Train loss",t,batchLossesT})
 	end
@@ -202,36 +224,16 @@ function train(inputs,targets)
 
 	if i % 200 == 0 then
 		print("==> Saving weights for ".. modelPath)
+		-- Learning rate change
+		print("==> Dropping lr from ",params.lr)
+		params.lr = params.lr/params.lrW
+		print("==> to",params.lr)
 		torch.save(modelPath,model)
 	end
-
-	if params.display == 1 and displayTrue ~= nil and i % 10 == 0 then 
-		local idx = 1 
-		local class = "Class = " .. targets[1][1] .. ". Prediction = ".. predictions[1]
-
-		-- Display rotated images
-		-- Middle Slice
-		image.display{image = inputs[1][1][{{idx},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgZ, legend = class}
-		image.display{image = inputs[1][2][{{idx},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgY, legend = class}
-		image.display{image = inputs[1][3][{{idx},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgX, legend = class}
-		-- Slice + 1
-		--[[
-		image.display{image = inputs[{{idx},{},{params.sliceSize/2 +2}}]:reshape(params.sliceSize,params.sliceSize), win = imgZ1, legend = class}
-		image.display{image = inputs[{{idx},{},{},{params.sliceSize/2 +2}}]:reshape(params.sliceSize,params.sliceSize), win = imgY1, legend = class}
-		image.display{image = inputs[{{idx},{},{},{},{params.sliceSize/2 +2}}]:reshape(params.sliceSize,params.sliceSize), win = imgX1, legend = class}
-		-- Slice + 2 
-		image.display{image = inputs[{{idx},{},{params.sliceSize/2 }}]:reshape(params.sliceSize,params.sliceSize), win = imgZ2, legend = class}
-		image.display{image = inputs[{{idx},{},{},{params.sliceSize/2 }}]:reshape(params.sliceSize,params.sliceSize), win = imgY2, legend = class}
-		image.display{image = inputs[{{idx},{},{},{},{params.sliceSize/2 }}]:reshape(params.sliceSize,params.sliceSize), win = imgX2, legend = class}
-		]]--
-
-		-- Display first layer activtion plane. Draw one activation plane at random and slice on first (z) dimension.
-		if params.activations == 1 then 
-			local activations1 = modelActivations1:forward(inputs)
-			local randomFeat1 = torch.random(1,modelActivations1:get(2).nOutputPlane)
-			image.display{image = activations1[{{1},{randomFeat1},{params.sliceSize/2}}]:reshape(params.sliceSize,params.sliceSize), win = activationDisplay1, legend = "Activations"}
-		end
-
+	
+	displayImageInit()
+	if params.display == 1 and displayTrue ~= nil and i % 50 == 0 then 
+		displayImage(inputs,targets,predictions,1)
 	end
 
 	xlua.progress(i,params.iterations)
@@ -239,12 +241,7 @@ function train(inputs,targets)
 	collectgarbage()
 end
 
-function test()
-	modelPath = "models/para1.model"
-	model = torch.load(modelPath)	
-	print("==> Loading model for testing")
-	print(model)
-
+function test(inputs,targets)
 	if i == nil then 
 		print("==> Initalizing training")
 		i = 1 
@@ -257,6 +254,7 @@ function test()
 	if params.cuda == 1 then
 		targets = targets:cuda()
 	end
+
 	predictions = model:forward(inputs[1])
 	loss = criterion:forward(predictions,targets)
 
@@ -269,29 +267,38 @@ function test()
 	accuracciesT = torch.Tensor(accuraccies)
 	batchLossesT = torch.Tensor(batchLosses)
 	local t = torch.range(1,batchLossesT:size()[1])
-	local ma = 10
+	local ma = 15
 	if i > ma then 
 		accMa = accuracciesT[{{-ma,-1}}]:mean()
-		print(string.format("Iteration %d. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ",
-		i, batchLossesT[{{-ma,-1}}]:mean(), accMa,accuracciesT:mean()))
+		print(string.format("Iteration %d accuracy= %f. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ",
+		i, accuracy, batchLossesT[{{-ma,-1}}]:mean(), accMa,accuracciesT:mean()))
 	end
 
 	--Plot
-	if i % 30 == 0 then
+	if i % 50 == 0 then
 		gnuplot.figure(1)
 		gnuplot.plot({"Test loss",t,batchLossesT})
 	end
+
+	displayImageInit()
+	if params.display == 1 and displayTrue ~= nil and i % 50 == 0 then 
+		displayImage(inputs,targets,predictions,1)
+	end
+
 	xlua.progress(i,params.iterations)
 	i = i + 1
+	collectgarbage()
 end
  
 inputs = {}
 targets = {}
 if params.run == 1 then 
+	if params.test == 1 then params.iterations = 3000 end 
 	for i = 1, params.iterations do 
 		donkeys:addjob(function()
 					x,y = loadData.getBatch(C0,C1,params.batchSize,params.sliceSize,params.clipMin,
-					params.clipMax,params.angleMax,params.scalingFactor,params.test,params.para)
+					params.clipMax,params.angleMax,params.scalingFactor,params.scalingFactorVar,
+					params.test,params.para)
 					return x,y
 				end,
 				function(x,y)

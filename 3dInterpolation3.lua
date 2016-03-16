@@ -27,7 +27,7 @@ function rotationMatrix(angle)  --Returns a 3D rotation matrix
 	return rotMatrix
 end
 
-function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax, scalingFactor, test) -- Returns 3d interpolated image
+function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax, scalingFactor, scalingFactorVar, test) -- Returns 3d interpolated image
 
 	--local imgOriginal = imgObject:loadImg(clipMin,clipMax,sliceSize)
 	
@@ -61,7 +61,7 @@ function rotation3d(imgObject, angleMax, sliceSize, clipMin, clipMax, scalingFac
 
 	--Spacing & scaling
 	local spacing  = torch.diag(torch.Tensor{1/imgObject.zSpacing, 1/imgObject.ySpacing, 1/imgObject.xSpacing})
-	local sf = torch.normal(scalingFactor,0.01)
+	local sf = torch.normal(scalingFactor,scalingFactorVar)
 	newCoords = newCoords*spacing*sf -- Using spacing information to transform back to the "real world"
 
 	-- Translate coords back to original coordinate system where the centre is on the nodule

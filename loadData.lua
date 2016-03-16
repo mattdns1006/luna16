@@ -24,7 +24,7 @@ loadData.Init = function()
 	C1:getNewScan()
 end
 
-loadData.getBatch = function(data1,data2,batchSize,sliceSize,clipMin,clipMax,angleMax,scalingFactor,test,para)
+loadData.getBatch = function(data1,data2,batchSize,sliceSize,clipMin,clipMax,angleMax,scalingFactor,scalingFactorVar,test,para)
 		--Make empty table to loop into
 		X = {}
 		y = torch.Tensor(batchSize,1)
@@ -48,12 +48,15 @@ loadData.getBatch = function(data1,data2,batchSize,sliceSize,clipMin,clipMax,ang
 				for i =1, para do
 					--[[
 					print("scalingFactor",scalingFactor[i])
+					print("scalingFactorVar",scalingFactorVar[i])
 					print("angleMax",angleMax[i])
 					]]--
-				   x[i] = rotation3d(data, angleMax[i], sliceSize, clipMin, clipMax, scalingFactor[i] , test):reshape(1,1,sliceSize,sliceSize,sliceSize):cuda()
+				   x[i] = rotation3d(data, angleMax[i], sliceSize, clipMin, clipMax, scalingFactor[i] ,
+				   	  scalingFactorVar[i], test):reshape(1,1,sliceSize,sliceSize,sliceSize):cuda()
 				 end
 			else 
-				X[i] = rotation3d(data, angleMax, sliceSize, clipMin, clipMax, scalingFactor, test):reshape(1,1,sliceSize,sliceSize,sliceSize)
+				X[i] = rotation3d(data, angleMax, sliceSize, clipMin, clipMax, scalingFactor, 
+				scalingFactorVar, test):reshape(1,1,sliceSize,sliceSize,sliceSize)
 			end
 			y[i] = data.Class
 
