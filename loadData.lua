@@ -17,8 +17,8 @@ loadData.Init = function()
 		local C1Path = "CSVFILES/subset"..params.fold.."/candidatesClass1"..trainTest..".csv"
 
 		print("==> "..trainTest.."ing on csv files; "..C0Path..", "..C1Path..".")
-		C0 = Data:new(C0Path,params.clipMin,params.clipMax,params.sliceSize)
-		C1 = Data:new(C1Path,params.clipMin,params.clipMax,params.sliceSize)
+		C0 = Data:new(C0Path,params.clipMin,params.clipMax,params.sliceSize[1])
+		C1 = Data:new(C1Path,params.clipMin,params.clipMax,params.sliceSize[1])
 	end
 	C0:getNewScan()
 	C1:getNewScan()
@@ -51,8 +51,8 @@ loadData.getBatch = function(data1,data2,batchSize,sliceSize,clipMin,clipMax,ang
 					print("scalingFactorVar",scalingFactorVar[i])
 					print("angleMax",angleMax[i])
 					]]--
-				   x[i] = rotation3d(data, angleMax[i], sliceSize, clipMin, clipMax, scalingFactor[i] ,
-				   	  scalingFactorVar[i], test):reshape(1,1,sliceSize,sliceSize,sliceSize):cuda()
+				   x[i] = rotation3d(data, angleMax[i], sliceSize[i], clipMin, clipMax, scalingFactor[i] ,
+				   	  scalingFactorVar[i], test):reshape(1,1,sliceSize[i],sliceSize[i],sliceSize[i]):cuda()
 				 end
 			else 
 				X[i] = rotation3d(data, angleMax, sliceSize, clipMin, clipMax, scalingFactor, 

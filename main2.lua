@@ -18,7 +18,7 @@ cmd:text()
 cmd:text()
 cmd:text('Options')
 cmd:option('-lr',0.0003,'Learning rate')
-cmd:option('-lrW',1.03,'Learning rate decay')
+cmd:option('-lrW',1.07,'Learning rate decay')
 cmd:option('-momentum',0.95,'Momentum')
 cmd:option('-batchSize',1,'batchSize')
 cmd:option('-cuda',1,'CUDA')
@@ -49,7 +49,7 @@ params.model = model
 params.rundir = cmd:string('results', params, {dir=true})
 
 -------------------------------------------- Model ---------------------------------------------------------
-modelPath = "models/para8.model"
+modelPath = "models/para9.model"
 if params.loadModel == 1 then 
 	print("==> Loading model weights ")
 	model = torch.load(modelPath)
@@ -93,9 +93,12 @@ end
 -------------------------------------------- Parallel Table parameters -------------------------------------------
 
 if params.para > 0 then
-	params.scalingFactor = {0.55,1,4}
+	params.sliceSize = {params.sliceSize,params.sliceSize,64}
+	params.scalingFactor = {0.55,1,2.5}
 	params.scalingFactorVar = {0.1,0.01,0.001}
 	params.angleMax = {0.9,0.5,0.01}
+	print("==> Slices ")
+	print(params.sliceSize)
 	print("==> Scaling factors ")
 	print(params.scalingFactor)
 	print("==> Scaling factor variances ")
@@ -125,11 +128,12 @@ end
 function displayImageInit()
 	if displayTrue==nil and params.display==1 then
 		print("Initializing displays ==>")
-		zoom = 0.6
-		init = image.lena()
-		imgZ = image.display{image=init, zoom=zoom, offscreen=false}
-		imgY = image.display{image=init, zoom=zoom, offscreen=false}
-		imgX = image.display{image=init, zoom=zoom, offscreen=false}
+		local init1 = torch.range(1,torch.pow(512,2),1):reshape(512,512)
+		local zoom = 0.7
+		--init = image.lena()
+		imgZ = image.display{image=init1, zoom=zoom, offscreen=false}
+		imgY = image.display{image=init2, zoom=zoom, offscreen=false}
+		imgX = image.display{image=init3, zoom=zoom, offscreen=false}
 		--[[
 		imgZ1 = image.display{image=init, zoom=zoom, offscreen=false}
 		imgY1 = image.display{image=init, zoom=zoom, offscreen=false}
@@ -149,9 +153,10 @@ function displayImage(inputs,targets,predictions,idx)
 		local class = "Class = " .. targets[1][1] .. ". Prediction = ".. predictions[1]
 		-- Display rotated images
 		-- Middle Slice
-		image.display{image = inputs[1][1][{{idx},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgZ, legend = class}
-		image.display{image = inputs[1][2][{{idx},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgY, legend = class}
-		image.display{image = inputs[1][3][{{idx},{},{params.sliceSize/2 +1}}]:reshape(params.sliceSize,params.sliceSize), win = imgX, legend = class}
+		image.display{image = inputs[1][1][{{idx},{},{params.sliceSize[1]/2 +1}}]:reshape(params.sliceSize[1],params.sliceSize[1]), win = imgZ, legend = class}
+		image.display{image = inputs[1][2][{{idx},{},{params.sliceSize[2]/2 +1}}]:reshape(params.sliceSize[2],params.sliceSize[2]), win = imgY, legend = class}
+		image.display{image = inputs[1][3][{{idx},{},{params.sliceSize[3]/2 +1}}]:reshape(params.sliceSize[3],params.sliceSize[3]), win = imgX, legend = class}
+
 		-- Slice + 1
 		--[[
 		image.display{image = inputs[{{idx},{},{params.sliceSize/2 +2}}]:reshape(params.sliceSize,params.sliceSize), win = imgZ1, legend = class}
@@ -221,7 +226,7 @@ function train(inputs,targets)
 	end
 
 	--Plot
-	if i %  params.displayFreq == 0 then
+	if i %  params.displayFreq*3 == 0 then
 		gnuplot.figure(1)
 		gnuplot.plot({"Train loss",t,batchLossesT})
 	end
@@ -241,7 +246,7 @@ function train(inputs,targets)
 	end
 	
 	displayImageInit()
-	if params.display == 1 and displayTrue ~= nil and i % 80 == 0 then 
+	if params.display == 1 and displayTrue ~= nil and i % params.displayFreq == 0 then 
 		displayImage(inputs,targets,predictions,1)
 	end
 
