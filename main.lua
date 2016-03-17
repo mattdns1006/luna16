@@ -18,7 +18,7 @@ cmd = torch.CmdLine()
 cmd:text()
 cmd:text()
 cmd:text('Options')
-cmd:option('-lr',0.00002,'Learning rate')
+cmd:option('-lr',0.0004,'Learning rate')
 cmd:option('-momentum',0.95,'Momentum')
 cmd:option('-batchSize',8,'batchSize')
 cmd:option('-cuda',1,'CUDA')
@@ -44,7 +44,6 @@ cmd:text()
 params = cmd:parse(arg)
 params.model = model
 params.rundir = cmd:string('results', params, {dir=true})
-
 
 -------------------------------------------- Model ---------------------------------------------------------
 model = models.parallelNetwork()

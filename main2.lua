@@ -17,8 +17,8 @@ cmd = torch.CmdLine()
 cmd:text()
 cmd:text()
 cmd:text('Options')
-cmd:option('-lr',0.0004,'Learning rate')
-cmd:option('-lrW',1.2,'Learning rate decay')
+cmd:option('-lr',0.0003,'Learning rate')
+cmd:option('-lrW',1.03,'Learning rate decay')
 cmd:option('-momentum',0.95,'Momentum')
 cmd:option('-batchSize',1,'batchSize')
 cmd:option('-cuda',1,'CUDA')
@@ -28,8 +28,9 @@ cmd:option('-scalingFactor',0.75,'Scaling factor for image')
 cmd:option('-scalingFactorVar',0.01,'Scaling factor variance for image')
 cmd:option('-clipMin',-1200,'Clip image below this value to this value')
 cmd:option('-clipMax',1200,'Clip image above this value to this value')
-cmd:option('-nThreads',4,"How many threads to load/preprocess data with?") 
+cmd:option('-nThreads',5,"How many threads to load/preprocess data with?") 
 cmd:option('-display',0,"Display images/plots") 
+cmd:option('-displayFreq',30,"How often per iteration do we display an image? ") 
 cmd:option('-activations',0,"Show activations -- needs -display 1") 
 cmd:option('-log',0,"Make log file in /Results/") 
 cmd:option('-run',0,'Run neral net straight away (either train or test)')
@@ -48,7 +49,7 @@ params.model = model
 params.rundir = cmd:string('results', params, {dir=true})
 
 -------------------------------------------- Model ---------------------------------------------------------
-modelPath = "models/para5.model"
+modelPath = "models/para8.model"
 if params.loadModel == 1 then 
 	print("==> Loading model weights ")
 	model = torch.load(modelPath)
@@ -92,9 +93,15 @@ end
 -------------------------------------------- Parallel Table parameters -------------------------------------------
 
 if params.para > 0 then
-	params.scalingFactor = {0.55,1,3}
+	params.scalingFactor = {0.55,1,4}
 	params.scalingFactorVar = {0.1,0.01,0.001}
-	params.angleMax = {0.9,0.5,0.001}
+	params.angleMax = {0.9,0.5,0.01}
+	print("==> Scaling factors ")
+	print(params.scalingFactor)
+	print("==> Scaling factor variances ")
+	print(params.scalingFactorVar)
+	print("==> Max rotation angles ")
+	print(params.angleMax)
 end
 -------------------------------------------- Loading data with threads ---------------------------------------------------
 
@@ -184,9 +191,7 @@ function train(inputs,targets)
 		
 	function feval(x)
 		if x~= parameters then parameters:copy(x) end
-
 		gradParameters:zero()
-
 		predictions = model:forward(inputs[1])
 		loss = criterion:forward(predictions,targets)
 		dLoss_d0 = criterion:backward(predictions,targets)
@@ -216,23 +221,27 @@ function train(inputs,targets)
 	end
 
 	--Plot
-	if i % 50 == 0 then
+	if i %  params.displayFreq == 0 then
 		gnuplot.figure(1)
 		gnuplot.plot({"Train loss",t,batchLossesT})
 	end
 
 
-	if i % 200 == 0 then
+	if i % 1000 == 0 then
 		print("==> Saving weights for ".. modelPath)
+		torch.save(modelPath,model)
+	end
+
+	if i % 200 == 0 then
 		-- Learning rate change
 		print("==> Dropping lr from ",params.lr)
 		params.lr = params.lr/params.lrW
 		print("==> to",params.lr)
-		torch.save(modelPath,model)
+
 	end
 	
 	displayImageInit()
-	if params.display == 1 and displayTrue ~= nil and i % 50 == 0 then 
+	if params.display == 1 and displayTrue ~= nil and i % 80 == 0 then 
 		displayImage(inputs,targets,predictions,1)
 	end
 

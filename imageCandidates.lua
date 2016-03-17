@@ -52,6 +52,10 @@ function Data:getNewScan()
 			i = i + 1
 		end
 	end
+	--[[
+	print("==> New scan")
+	print(self.scanName)
+	]]--
 
 	-- Get all candidates that belong to that scan
 	self.scanCandidates = {}

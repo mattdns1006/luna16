@@ -4,7 +4,8 @@ models = {}
 
 function miniNetwork()
 	local model = nn.Sequential()
-	nFiltersInc = 32 
+	--nFiltersInc = 32 
+	nFiltersInc = 42 
 	nFilters = {1,nFiltersInc,nFiltersInc*2,nFiltersInc*3,nFiltersInc*4}
 	filterSizeConv = {3,3,3,3,3}
 	strideConv = {1,1,1,1,1}
@@ -22,7 +23,11 @@ function miniNetwork()
 	for i = 1,3 do 
 
 		modelLayers.add3DConv(model, layerNu, nFilters, filterSizeConv, strideConv, paddingConv,0)
-		--modelLayers.add3DConv(model, layerNu, nFilters, filterSizeConv, strideConv, paddingConv,1)
+		--[[
+		modelLayers.addBN(model, layerNu, nFilters)
+		modelLayers.add3DConv(model, layerNu, nFilters, filterSizeConv, strideConv, paddingConv,1)
+		]]--
+		--
 		--model:add(nn.ReLU())
 		--model:add(nn.PReLU())
 		model:add(nn.Tanh())
@@ -57,10 +62,12 @@ function models.parallelNetwork()
 	model:add(nn.JoinTable(1))
 	--[[
 	model:add(nn.Linear(3,10))
+	model:add(nn.Normalize(2))
 	model:add(nn.Tanh())
-	model:add(nn.Linear(10,10))
+	model:add(nn.Linear(10,3))
+	model:add(nn.Normalize(2))
 	model:add(nn.Tanh())
-	]]--
+	--]]
 	model:add(nn.Linear(3,1))
 	model:add(nn.Sigmoid())
 	return model 
