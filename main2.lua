@@ -128,12 +128,12 @@ end
 function displayImageInit()
 	if displayTrue==nil and params.display==1 then
 		print("Initializing displays ==>")
-		local init1 = torch.range(1,torch.pow(512,2),1):reshape(512,512)
+		local init = torch.range(1,torch.pow(512,2),1):reshape(512,512)
 		local zoom = 0.7
 		--init = image.lena()
-		imgZ = image.display{image=init1, zoom=zoom, offscreen=false}
-		imgY = image.display{image=init2, zoom=zoom, offscreen=false}
-		imgX = image.display{image=init3, zoom=zoom, offscreen=false}
+		imgZ = image.display{image=init, zoom=zoom, offscreen=false}
+		imgY = image.display{image=init, zoom=zoom, offscreen=false}
+		imgX = image.display{image=init, zoom=zoom, offscreen=false}
 		--[[
 		imgZ1 = image.display{image=init, zoom=zoom, offscreen=false}
 		imgY1 = image.display{image=init, zoom=zoom, offscreen=false}
