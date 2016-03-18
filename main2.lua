@@ -18,8 +18,8 @@ cmd = torch.CmdLine()
 cmd:text()
 cmd:text()
 cmd:text('Options')
-cmd:option('-lr',0.0004,'Learning rate')
-cmd:option('-lrW',1.2,'Learning rate decay')
+cmd:option('-lr',0.0001,'Learning rate')
+cmd:option('-lrW',1.1,'Learning rate decay')
 cmd:option('-momentum',0.95,'Momentum')
 cmd:option('-batchSize',1,'batchSize')
 cmd:option('-cuda',1,'CUDA')
@@ -27,10 +27,10 @@ cmd:option('-sliceSize',36,"Length size of cube around nodule")
 cmd:option('-angleMax',0.5,"Absolute maximum angle for rotating image")
 cmd:option('-scalingFactor',0.75,'Scaling factor for image')
 cmd:option('-scalingFactorVar',0.01,'Scaling factor variance for image')
-cmd:option('-clipMin',-1200,'Clip image below this value to this value')
-cmd:option('-clipMax',1200,'Clip image above this value to this value')
+cmd:option('-clipMin',-1300,'Clip image below this value to this value')
+cmd:option('-clipMax',1300,'Clip image above this value to this value')
 cmd:option('-cmThresh',0.5,'confusion matrix threshold')
-cmd:option('-nThreads',5,"How many threads to load/preprocess data with?") 
+cmd:option('-nThreads',6,"How many threads to load/preprocess data with?") 
 cmd:option('-display',0,"Display images/plots") 
 cmd:option('-displayFreq',30,"How often per iteration do we display an image? ") 
 cmd:option('-activations',0,"Show activations -- needs -display 1") 
@@ -51,7 +51,7 @@ params.model = model
 params.rundir = cmd:string('results', params, {dir=true})
 
 -------------------------------------------- Model ---------------------------------------------------------
-modelPath = "models/para5.model"
+modelPath = "models/para12.model"
 if params.loadModel == 1 then 
 	print("==> Loading model weights ")
 	model = torch.load(modelPath)
@@ -96,10 +96,10 @@ end
 -------------------------------------------- Parallel Table parameters -------------------------------------------
 
 if params.para > 0 then
-	params.sliceSize = {36,36,36}
-	params.scalingFactor = {0.55,1,3}
-	params.scalingFactorVar = {0.1,0.01,0.001}
-	params.angleMax = {0.9,0.5,0.0001}
+	params.sliceSize = {48,48,64}
+	params.scalingFactor = {0.21,0.7,1.8}
+	params.scalingFactorVar = {0.05,0.01,0.001}
+	params.angleMax = {0.9,0.9,0.0001}
 	print("==> Slices ")
 	print(params.sliceSize)
 	print("==> Scaling factors ")
@@ -192,8 +192,6 @@ function displayImage(inputs,targets,predictions,idx)
 end
 
 function train(inputs,targets)
-	local cm = BinaryConfusionMatrix.new(params.cmThresh)
-
 	if i == nil then 
 		print("==> Initalizing training")
 		i = 1 
@@ -246,7 +244,7 @@ function train(inputs,targets)
 	--Plot & Confusion Matrix
 	if i % params.displayFreq == 0 then
 		gnuplot.figure(1)
-		gnuplot.plot({"Test loss",t,batchLossesT})
+		gnuplot.plot({"Train loss",t,batchLossesT})
 		print("==> Confusion matrix")
 		print(cm.cm)
 	end

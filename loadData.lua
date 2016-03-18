@@ -17,8 +17,14 @@ loadData.Init = function()
 		local C1Path = "CSVFILES/subset"..params.fold.."/candidatesClass1"..trainTest..".csv"
 
 		print("==> "..trainTest.."ing on csv files; "..C0Path..", "..C1Path..".")
-		C0 = Data:new(C0Path,params.clipMin,params.clipMax,params.sliceSize[1])
-		C1 = Data:new(C1Path,params.clipMin,params.clipMax,params.sliceSize[1])
+		local maxSlice = 0 
+		for _, v in pairs(params.sliceSize) do
+			if v > maxSlice then
+				maxSlice = v
+			end
+		end
+		C0 = Data:new(C0Path,params.clipMin,params.clipMax,maxSlice)
+		C1 = Data:new(C1Path,params.clipMin,params.clipMax,maxSlice)
 	end
 	C0:getNewScan()
 	C1:getNewScan()
