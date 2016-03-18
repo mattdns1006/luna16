@@ -51,7 +51,7 @@ params.model = model
 params.rundir = cmd:string('results', params, {dir=true})
 
 -------------------------------------------- Model ---------------------------------------------------------
-modelPath = "models/para10.model"
+modelPath = "models/para5.model"
 if params.loadModel == 1 then 
 	print("==> Loading model weights ")
 	model = torch.load(modelPath)
@@ -96,8 +96,8 @@ end
 -------------------------------------------- Parallel Table parameters -------------------------------------------
 
 if params.para > 0 then
-	params.sliceSize = {48,48,48}
-	params.scalingFactor = {0.35,0.7,2}
+	params.sliceSize = {36,36,36}
+	params.scalingFactor = {0.55,1,3}
 	params.scalingFactorVar = {0.1,0.01,0.001}
 	params.angleMax = {0.9,0.5,0.0001}
 	print("==> Slices ")
@@ -125,7 +125,14 @@ do
 			require 'torch'
 		end,
 		function(idx)
-			print("==> Initializing threads.")
+			tid = idx
+			if options.test == 1 then 
+				local seed = idx
+				torch.manualSeed(seed)
+				print(string.format('Initializing test thread with id: %d seed: %d', tid, seed))
+			else 	
+				print(string.format('Initializing training thread with id: %d ', tid))
+			end
 			params = options -- pass to all donkeys via upvalue
 			loadData = require "loadData"
 			loadData.Init()
@@ -231,8 +238,9 @@ function train(inputs,targets)
 	local ma = 15 
 	if i > ma then 
 		accMa = accuracciesT[{{-ma,-1}}]:mean()
-		print(string.format("Iteration %d accuracy= %f. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ",
-		i, accuracy, batchLossesT[{{-ma,-1}}]:mean(), accMa,accuracciesT:mean()))
+		--print(string.format("Iteration %d accuracy= %f. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ", i, accuracy, batchLossesT[{{-ma,-1}}]:mean(), accMa,accuracciesT:mean()))
+		cm:performance()
+
 	end
 
 	--Plot & Confusion Matrix
@@ -298,8 +306,8 @@ function test(inputs,targets)
 	local ma = 15
 	if i > ma then 
 		accMa = accuracciesT[{{-ma,-1}}]:mean()
-		print(string.format("Iteration %d accuracy= %f. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ",
-		i, accuracy, batchLossesT[{{-ma,-1}}]:mean(), accMa,accuracciesT:mean()))
+		--print(string.format("Iteration %d accuracy= %f. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ", i, accuracy, batchLossesT[{{-ma,-1}}]:mean(), accMa,accuracciesT:mean()))
+		cm:performance()
 	end
 
 	--Plot & Confusion Matrix

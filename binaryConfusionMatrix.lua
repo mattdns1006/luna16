@@ -25,3 +25,11 @@ function BinaryConfusionMatrix:add(prediction,target)
 		print("Could not add to cm")
 	end
 end
+
+function BinaryConfusionMatrix:performance()
+	self.accuracy = torch.diag(self.cm):sum()/self.cm:sum()
+	self.precision = (self.cm[2][2])/(self.cm[2][1] + self.cm[2][2])
+	self.recall = (self.cm[2][2])/(self.cm[1][2] + self.cm[2][2])
+	print(string.format("Accuracy, precision, recall ==>  %f, %f, %f.", self.accuracy,self.precision,self.recall))
+end
+
