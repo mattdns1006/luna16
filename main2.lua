@@ -7,6 +7,7 @@ require "xlua"
 require "gnuplot"
 threads = require "threads"
 dofile("binaryAccuracy.lua")
+dofile("binaryConfusionMatrix.lua")
 models = require "models"
 shuffle = require "shuffle"
 Threads = require 'threads'
@@ -17,8 +18,8 @@ cmd = torch.CmdLine()
 cmd:text()
 cmd:text()
 cmd:text('Options')
-cmd:option('-lr',0.0003,'Learning rate')
-cmd:option('-lrW',1.07,'Learning rate decay')
+cmd:option('-lr',0.0004,'Learning rate')
+cmd:option('-lrW',1.2,'Learning rate decay')
 cmd:option('-momentum',0.95,'Momentum')
 cmd:option('-batchSize',1,'batchSize')
 cmd:option('-cuda',1,'CUDA')
@@ -28,6 +29,7 @@ cmd:option('-scalingFactor',0.75,'Scaling factor for image')
 cmd:option('-scalingFactorVar',0.01,'Scaling factor variance for image')
 cmd:option('-clipMin',-1200,'Clip image below this value to this value')
 cmd:option('-clipMax',1200,'Clip image above this value to this value')
+cmd:option('-cmThresh',0.5,'confusion matrix threshold')
 cmd:option('-nThreads',5,"How many threads to load/preprocess data with?") 
 cmd:option('-display',0,"Display images/plots") 
 cmd:option('-displayFreq',30,"How often per iteration do we display an image? ") 
@@ -49,7 +51,7 @@ params.model = model
 params.rundir = cmd:string('results', params, {dir=true})
 
 -------------------------------------------- Model ---------------------------------------------------------
-modelPath = "models/para9.model"
+modelPath = "models/para10.model"
 if params.loadModel == 1 then 
 	print("==> Loading model weights ")
 	model = torch.load(modelPath)
@@ -58,6 +60,7 @@ else
 	model = models.parallelNetwork()
 end
 print("Model == >",model)
+print("Model path ==>" ,modelPath)
 print("==> Parameters",params)
 
 -------------------------------------------- Criterion & Activations ----------------------------------------
@@ -93,10 +96,10 @@ end
 -------------------------------------------- Parallel Table parameters -------------------------------------------
 
 if params.para > 0 then
-	params.sliceSize = {params.sliceSize,params.sliceSize,64}
-	params.scalingFactor = {0.55,1,2.5}
+	params.sliceSize = {48,48,48}
+	params.scalingFactor = {0.35,0.7,2}
 	params.scalingFactorVar = {0.1,0.01,0.001}
-	params.angleMax = {0.9,0.5,0.01}
+	params.angleMax = {0.9,0.5,0.0001}
 	print("==> Slices ")
 	print(params.sliceSize)
 	print("==> Scaling factors ")
@@ -106,7 +109,12 @@ if params.para > 0 then
 	print("==> Max rotation angles ")
 	print(params.angleMax)
 end
+-------------------------------------------- Confusion Matrix Init ---------------------------------------------------
+
+cm = BinaryConfusionMatrix.new(params.cmThresh)
+
 -------------------------------------------- Loading data with threads ---------------------------------------------------
+
 
 print(string.format("==> Using %d threads ",params.nThreads))
 do
@@ -128,7 +136,7 @@ end
 function displayImageInit()
 	if displayTrue==nil and params.display==1 then
 		print("Initializing displays ==>")
-		local init = torch.range(1,torch.pow(512,2),1):reshape(512,512)
+		init = torch.range(1,torch.pow(512,2),1):reshape(512,512)
 		local zoom = 0.7
 		--init = image.lena()
 		imgZ = image.display{image=init, zoom=zoom, offscreen=false}
@@ -177,6 +185,7 @@ function displayImage(inputs,targets,predictions,idx)
 end
 
 function train(inputs,targets)
+	local cm = BinaryConfusionMatrix.new(params.cmThresh)
 
 	if i == nil then 
 		print("==> Initalizing training")
@@ -199,6 +208,7 @@ function train(inputs,targets)
 		gradParameters:zero()
 		predictions = model:forward(inputs[1])
 		loss = criterion:forward(predictions,targets)
+		cm:add(predictions[1],targets[1][1])
 		dLoss_d0 = criterion:backward(predictions,targets)
 		if params.log == 1 then logger:add{['loss'] = loss } end
 		model:backward(inputs[1], dLoss_d0)
@@ -225,10 +235,12 @@ function train(inputs,targets)
 		i, accuracy, batchLossesT[{{-ma,-1}}]:mean(), accMa,accuracciesT:mean()))
 	end
 
-	--Plot
-	if i %  params.displayFreq*3 == 0 then
+	--Plot & Confusion Matrix
+	if i % params.displayFreq == 0 then
 		gnuplot.figure(1)
-		gnuplot.plot({"Train loss",t,batchLossesT})
+		gnuplot.plot({"Test loss",t,batchLossesT})
+		print("==> Confusion matrix")
+		print(cm.cm)
 	end
 
 
@@ -256,6 +268,7 @@ function train(inputs,targets)
 end
 
 function test(inputs,targets)
+
 	if i == nil then 
 		print("==> Initalizing training")
 		i = 1 
@@ -271,6 +284,7 @@ function test(inputs,targets)
 
 	predictions = model:forward(inputs[1])
 	loss = criterion:forward(predictions,targets)
+	cm:add(predictions[1],targets[1][1])
 
 	-- Performance metrics
 	accuracy = binaryAccuracy(targets,predictions,params.cuda)
@@ -288,10 +302,12 @@ function test(inputs,targets)
 		i, accuracy, batchLossesT[{{-ma,-1}}]:mean(), accMa,accuracciesT:mean()))
 	end
 
-	--Plot
-	if i % 50 == 0 then
+	--Plot & Confusion Matrix
+	if i % params.displayFreq  == 0 then
 		gnuplot.figure(1)
 		gnuplot.plot({"Test loss",t,batchLossesT})
+		print("==> Confusion matrix")
+		print(cm.cm)
 	end
 
 	displayImageInit()
