@@ -53,7 +53,7 @@ params.model = model
 params.rundir = cmd:string('results', params, {dir=true})
 
 -------------------------------------------- Model ---------------------------------------------------------
-modelPath = "models/para15.model"
+modelPath = "models/para16.model"
 if params.loadModel == 1 then 
 	print("==> Loading model weights ")
 	model = torch.load(modelPath)
@@ -96,7 +96,7 @@ end
 
 if params.para > 0 then
 	params.sliceSize = {42,42,42}
-	params.scalingFactor = {0.30,0.8,2}
+	params.scalingFactor = {0.40,0.8,2}
 	params.scalingFactorVar = {0.1,0.01,0.001}
 	params.angleMax = {0.9,0.9,0.0001}
 	print("==> Slices ")
