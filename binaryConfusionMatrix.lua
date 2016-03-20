@@ -33,3 +33,4 @@ function BinaryConfusionMatrix:performance()
 	print(string.format("Accuracy, precision, recall ==>  %f, %f, %f.", self.accuracy,self.precision,self.recall))
 end
 
+

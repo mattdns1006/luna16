@@ -8,6 +8,7 @@ require "gnuplot"
 threads = require "threads"
 dofile("binaryAccuracy.lua")
 dofile("binaryConfusionMatrix.lua")
+dofile("movingAverage.lua")
 models = require "models"
 shuffle = require "shuffle"
 Threads = require 'threads'
@@ -18,8 +19,8 @@ cmd = torch.CmdLine()
 cmd:text()
 cmd:text()
 cmd:text('Options')
-cmd:option('-lr',0.0001,'Learning rate')
-cmd:option('-lrW',1.1,'Learning rate decay')
+cmd:option('-lr',0.0002,'Learning rate')
+cmd:option('-lrW',1.2,'Learning rate decay')
 cmd:option('-momentum',0.95,'Momentum')
 cmd:option('-batchSize',1,'batchSize')
 cmd:option('-cuda',1,'CUDA')
@@ -27,12 +28,13 @@ cmd:option('-sliceSize',36,"Length size of cube around nodule")
 cmd:option('-angleMax',0.5,"Absolute maximum angle for rotating image")
 cmd:option('-scalingFactor',0.75,'Scaling factor for image')
 cmd:option('-scalingFactorVar',0.01,'Scaling factor variance for image')
-cmd:option('-clipMin',-1300,'Clip image below this value to this value')
-cmd:option('-clipMax',1300,'Clip image above this value to this value')
+cmd:option('-clipMin',-1200,'Clip image below this value to this value')
+cmd:option('-clipMax',1200,'Clip image above this value to this value')
 cmd:option('-cmThresh',0.5,'confusion matrix threshold')
 cmd:option('-nThreads',6,"How many threads to load/preprocess data with?") 
 cmd:option('-display',0,"Display images/plots") 
 cmd:option('-displayFreq',30,"How often per iteration do we display an image? ") 
+cmd:option('-ma',20,"Moving average paramter for graph") 
 cmd:option('-activations',0,"Show activations -- needs -display 1") 
 cmd:option('-log',0,"Make log file in /Results/") 
 cmd:option('-run',0,'Run neral net straight away (either train or test)')
@@ -51,7 +53,7 @@ params.model = model
 params.rundir = cmd:string('results', params, {dir=true})
 
 -------------------------------------------- Model ---------------------------------------------------------
-modelPath = "models/para12.model"
+modelPath = "models/para15.model"
 if params.loadModel == 1 then 
 	print("==> Loading model weights ")
 	model = torch.load(modelPath)
@@ -63,21 +65,18 @@ print("Model == >",model)
 print("Model path ==>" ,modelPath)
 print("==> Parameters",params)
 
--------------------------------------------- Criterion & Activations ----------------------------------------
+-------------------------------------------- Criterion & Activations
+------------------------------------------
 criterion = nn.MSECriterion()
 --criterion = nn.BCECriterion()
 
-if params.log == 1 then  -- Log file
-	local logPath = "results/"..params.rundir
-	paths.mkdir(logPath)
-	logger = optim.Logger(logPath.. '/results.log') 
+if params.log == 1 then  -- Log file local logPath = "results/"..params.rundir
+	paths.mkdir(logPath) logger = optim.Logger(logPath.. '/results.log')
 end
 
 --Show activations need first n layers
-if params.activations == 1 then
-	modelActivations1 = nn.Sequential()
-	for i=1,3 do modelActivations1:add(model:get(i)) end
-end
+if params.activations == 1 then modelActivations1 = nn.Sequential() for i=1,3
+	do modelActivations1:add(model:get(i)) end end
 
 -------------------------------------------- Optimization --------------------------------------------------
 optimState = {
@@ -96,9 +95,9 @@ end
 -------------------------------------------- Parallel Table parameters -------------------------------------------
 
 if params.para > 0 then
-	params.sliceSize = {48,48,64}
-	params.scalingFactor = {0.21,0.7,1.8}
-	params.scalingFactorVar = {0.05,0.01,0.001}
+	params.sliceSize = {42,42,42}
+	params.scalingFactor = {0.30,0.8,2}
+	params.scalingFactorVar = {0.1,0.01,0.001}
 	params.angleMax = {0.9,0.9,0.0001}
 	print("==> Slices ")
 	print(params.sliceSize)
@@ -109,9 +108,10 @@ if params.para > 0 then
 	print("==> Max rotation angles ")
 	print(params.angleMax)
 end
--------------------------------------------- Confusion Matrix Init ---------------------------------------------------
+-------------------------------------------- Misc Init ---------------------------------------------------
 
 cm = BinaryConfusionMatrix.new(params.cmThresh)
+ma = MovingAverage.new(params.ma)
 
 -------------------------------------------- Loading data with threads ---------------------------------------------------
 
@@ -233,20 +233,26 @@ function train(inputs,targets)
 	accuracciesT = torch.Tensor(accuraccies)
 	batchLossesT = torch.Tensor(batchLosses)
 	local t = torch.range(1,batchLossesT:size()[1])
-	local ma = 15 
-	if i > ma then 
-		accMa = accuracciesT[{{-ma,-1}}]:mean()
-		--print(string.format("Iteration %d accuracy= %f. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ", i, accuracy, batchLossesT[{{-ma,-1}}]:mean(), accMa,accuracciesT:mean()))
+	if i > params.ma then 
+		accMa = accuracciesT[{{-params.ma,-1}}]:mean()
+		print(string.format("Iteration %d accuracy= %f. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ", i, accuracy, batchLossesT[{{-params.ma,-1}}]:mean(), accMa,accuracciesT:mean()))
 		cm:performance()
+		--print(string.format("Accuracy (value) overall = %f",accuracciesT:mean()))
 
 	end
 
 	--Plot & Confusion Matrix
 	if i % params.displayFreq == 0 then
 		gnuplot.figure(1)
-		gnuplot.plot({"Train loss",t,batchLossesT})
+		print(batchLossesT:size())
+		MA = ma:forward(batchLossesT)
+		MA:resize(MA:size()[1])
+		t = torch.range(1,MA:size()[1])
+		gnuplot.plot({"Train loss ma ",t,MA})
 		print("==> Confusion matrix")
 		print(cm.cm)
+		print("==> Linear weighting of sub nets")
+		print(model:get(3).weight)
 	end
 
 
@@ -255,7 +261,7 @@ function train(inputs,targets)
 		torch.save(modelPath,model)
 	end
 
-	if i % 200 == 0 then
+	if i % 400 == 0 then
 		-- Learning rate change
 		print("==> Dropping lr from ",params.lr)
 		params.lr = params.lr/params.lrW
@@ -300,20 +306,27 @@ function test(inputs,targets)
 	batchLosses[#batchLosses + 1] = loss 
 	accuracciesT = torch.Tensor(accuraccies)
 	batchLossesT = torch.Tensor(batchLosses)
-	local t = torch.range(1,batchLossesT:size()[1])
-	local ma = 15
-	if i > ma then 
-		accMa = accuracciesT[{{-ma,-1}}]:mean()
+
+	if i > params.ma then 
+		accMa = accuracciesT[{{-params.ma,-1}}]:mean()
 		--print(string.format("Iteration %d accuracy= %f. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ", i, accuracy, batchLossesT[{{-ma,-1}}]:mean(), accMa,accuracciesT:mean()))
+		print(string.format("Accuracy (value) overall = %f",accuracciesT:mean()))
 		cm:performance()
+
 	end
 
 	--Plot & Confusion Matrix
 	if i % params.displayFreq  == 0 then
 		gnuplot.figure(1)
-		gnuplot.plot({"Test loss",t,batchLossesT})
+		print(batchLossesT:size())
+		MA = ma:forward(batchLossesT)
+		MA:resize(MA:size()[1])
+		t = torch.range(1,MA:size()[1])
+		gnuplot.plot({"Test loss ma ",t,MA})
 		print("==> Confusion matrix")
 		print(cm.cm)
+		print("==> Linear weighting of sub nets")
+		print(model:get(3).weight)
 	end
 
 	displayImageInit()

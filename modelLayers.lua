@@ -11,7 +11,7 @@ function modelLayers.add3DConv(model,layerNu,nFilters,filterSize,stride,padding,
 		nFiltersPrevious = nFilters[layerNu-1]
 	end
 	model:add(nn.VolumetricConvolution(
-					  nFiltersPrevious,
+					  nFilters[layerNu-1],
 					  nFilters[layerNu],
 					  filterSize[layerNu],
 					  filterSize[layerNu],
