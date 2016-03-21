@@ -53,7 +53,7 @@ params.model = model
 params.rundir = cmd:string('results', params, {dir=true})
 
 -------------------------------------------- Model ---------------------------------------------------------
-modelPath = "models/para16.model"
+modelPath = "models/para17.model"
 if params.loadModel == 1 then 
 	print("==> Loading model weights ")
 	model = torch.load(modelPath)
@@ -261,7 +261,7 @@ function train(inputs,targets)
 		torch.save(modelPath,model)
 	end
 
-	if i % 400 == 0 then
+	if i % 500 == 0 then
 		-- Learning rate change
 		print("==> Dropping lr from ",params.lr)
 		params.lr = params.lr/params.lrW
