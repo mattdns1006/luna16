@@ -45,9 +45,8 @@ cmd:option('-loadModel',0,"Load model")
 cmd:option('-para',3,"Are we using a parallel network? If bigger than 0 then this is equal to number of inputs. Otherwise input number is 1.") 
 --cmd:option('-nInputScalingFactors',3,"Number of input scaling factors.") 
 -- K fold cv options
-cmd:option('-kFold',1,"Are we doing k fold? Default is to train on subsets 1-9 and test on subset0") 
-cmd:option('-fold',0,"Which fold to NOT train on") 
---cmd:option('-loadModel',"model1.model","Load model") 
+cmd:option('-kFold',1,"Are we doing k fold?") 
+cmd:option('-fold',40,"Which fold to train on. 04 and 59 mean folds 0-4 and 5-9 respectivly for 2 fold.") 
 cmd:text()
 params = cmd:parse(arg)
 params.model = model

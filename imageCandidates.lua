@@ -58,8 +58,8 @@ function Data:getNewScan()
 			i = i + 1
 		end
 	end
-	print("==> New scan number ",self.currentScanNumber, " out of ", self.nScans)
-	print(self.scanName)
+	--print("==> New scan number ",self.currentScanNumber, " out of ", self.nScans)
+	--print(self.scanName)
 
 	-- Get all candidates that belong to that scan
 	self.scanCandidates = {}
