@@ -5,6 +5,12 @@ dofile("3dInterpolation3.lua")
 
 shuffle = {}
 
+function shuffle.tableLength(T)
+  local count = 0
+    for _ in pairs(T) do count = count + 1 end
+      return count
+end
+
 --Function to get batch from array given a from and to index
 function shuffle.getBatch(array,from,to)
 
@@ -19,14 +25,26 @@ end
 
 --Function to shuffle array 
 function shuffle.shuffle(array)
-    math.randomseed(os.time())
-
-    for i = 1, #array*2 do
-	 local a = math.random(#array)
-	 local b = math.random(#array)
-	 array[a],array[b] = array[b],array[a]
+    newTable = {}
+    nObs = shuffle.tableLength(array)
+    for i = 1, nObs do
+         nObs = shuffle.tableLength(array)
+	 a = math.random(nObs)
+	 j = 1
+	 for k,v in pairs(array) do
+		 if j == a then
+			 newTable[k] = v
+			 print("new")
+			 print(newTable)
+			 array[k] = nil -- remove from original array
+			 print("old")
+			 print(array)
+		 else
+			 j = j + 1
+		 end
+	end
     end
-    return array
+    return newTable 
 end
     
 -- Function to split array into two given proportion (eg. into train test)
@@ -50,6 +68,19 @@ function shuffle.split(array,splitProportion)
 
     return first, second -- Return the two arrays in order
 end
+
+function shuffle.table(table)
+	shuffledTable = {}
+	for k, v in pairs(table) do
+	end
+end
+
+eg = {}
+eg["hi"] = "hello"
+eg["bi"] = "bye"
+eg["cool"] = "cool"
+eg["whats up"] = "hows it going"
+eg["foo"] = "bar"
 
 return shuffle
 

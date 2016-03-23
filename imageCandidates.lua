@@ -27,35 +27,39 @@ function Data:new(path,clipMn,clipMx,sliceSze)
 		end
 	end
 
+	--Shuffle the data - so different threads look at different scans at each stage.
+	
+
+	local currentScanNum = 1
+
 	return setmetatable({allCandidates = csv,
 			     allScans = csvUnique,
 		     	     nScans = tableLength(csvUnique),
 			     clipMin = clipMn,
 			     clipMax = clipMx,
-			     sliceSize = sliceSze
+			     sliceSize = sliceSze,
+			     currentScanNumber = currentScanNum
 		     		},Data)
 end
 
 -- function that generates random scan with list of all candidates in that scan and appends it as an attribute as well as the clipped image
 function Data:getNewScan() 
 	--Draw random number 
-	local obsNumber = torch.random(self.nScans)
+	--local obsNumber = torch.random(self.nScans)
 
 	--Get a random observation from the CSV
 	local i = 1 
 	self.scanName = {}
 	for k,_ in pairs(self.allScans) do 	
-		if i == obsNumber then
+		if i == self.currentScanNumber then
 			self.scanName = k	
 			break
 		else
 			i = i + 1
 		end
 	end
-	--[[
-	print("==> New scan")
+	print("==> New scan number ",self.currentScanNumber, " out of ", self.nScans)
 	print(self.scanName)
-	]]--
 
 	-- Get all candidates that belong to that scan
 	self.scanCandidates = {}
@@ -118,7 +122,12 @@ function Data:getNextCandidate()
 	self.x = checkCoords(self.x,self.img:size()[3],self.sliceSize)
 
 	self.currentCandidate = self.currentCandidate + 1
-	if self.currentCandidate >= #self.scanCandidates then self.finishedScan = true end -- If we are at the end of the batch we flag in order to prompt a recall of getNewScan
+	if self.currentCandidate >= #self.scanCandidates then 
+		self.finishedScan = true 
+		self.currentScanNumber = self.currentScanNumber + 1
+	end -- If we are at the end of the batch we flag in order to prompt a recall of getNewScan
 
 end
 
+eg = "CSVFILES/subset0/candidatesTest.csv"
+data = Data:new(eg,-1200,1200,42)

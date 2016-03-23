@@ -12,11 +12,19 @@ loadData.Init = function()
 		else
 			trainTest = "Train"
 		end
-		print("==> k fold cross validation leaving subset "..params.fold.." out for testing")
-		local C0Path = "CSVFILES/subset"..params.fold.."/candidatesClass0"..trainTest..".csv"
-		local C1Path = "CSVFILES/subset"..params.fold.."/candidatesClass1"..trainTest..".csv"
+		if params.fullTest == 1 then 
+			print("==> Proper test set regarding competition i.e. imbalanced test set")
+			C0Path ="CSVFILES/subset"..params.fold.."/candidatesTest.csv" 
+			C1Path ="CSVFILES/subset"..params.fold.."/candidatesTest.csv" 
+			print("==> Full testing on csv files; "..C0Path..", "..C1Path..".")
+		else 
+			print("==> k fold cross validation leaving subset "..params.fold.." out for testing")
+			C0Path = "CSVFILES/subset"..params.fold.."/candidatesClass0"..trainTest..".csv"
+			C1Path = "CSVFILES/subset"..params.fold.."/candidatesClass1"..trainTest..".csv"
+			print("==> "..trainTest.."ing on csv files; "..C0Path..", "..C1Path..".")
+		end
 
-		print("==> "..trainTest.."ing on csv files; "..C0Path..", "..C1Path..".")
+
 		local maxSlice = 0 
 		for _, v in pairs(params.sliceSize) do
 			if v > maxSlice then

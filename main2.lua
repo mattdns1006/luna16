@@ -38,7 +38,8 @@ cmd:option('-ma',40,"Moving average paramter for graph")
 cmd:option('-activations',0,"Show activations -- needs -display 1") 
 cmd:option('-log',0,"Make log file in /Results/") 
 cmd:option('-run',0,'Run neral net straight away (either train or test)')
-cmd:option('-test',0,"Test") 
+cmd:option('-test',0,"Test on 50/50 class distribution") 
+cmd:option('-fullTest',0,"Full test regarding the luna16 competition - i.e. imbalanced test set") 
 cmd:option('-iterations',30000,"Number of examples to use.") 
 cmd:option('-loadModel',0,"Load model") 
 cmd:option('-para',3,"Are we using a parallel network? If bigger than 0 then this is equal to number of inputs. Otherwise input number is 1.") 
@@ -351,7 +352,7 @@ if params.run == 1 then
 					return x,y
 				end,
 				function(x,y)
-					if params.test == 1 then
+					if params.test == 1 or params.fullTest == 1 then
 						test(x,y)
 					else 
 						train(x,y)
