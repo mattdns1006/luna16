@@ -33,13 +33,13 @@ cmd:option('-clipMax',1200,'Clip image above this value to this value')
 cmd:option('-cmThresh',0.5,'confusion matrix threshold')
 cmd:option('-nThreads',6,"How many threads to load/preprocess data with?") 
 cmd:option('-display',0,"Display images/plots") 
-cmd:option('-displayFreq',30,"How often per iteration do we display an image? ") 
-cmd:option('-ma',20,"Moving average paramter for graph") 
+cmd:option('-displayFreq',40,"How often per iteration do we display an image? ") 
+cmd:option('-ma',40,"Moving average paramter for graph") 
 cmd:option('-activations',0,"Show activations -- needs -display 1") 
 cmd:option('-log',0,"Make log file in /Results/") 
 cmd:option('-run',0,'Run neral net straight away (either train or test)')
 cmd:option('-test',0,"Test") 
-cmd:option('-iterations',10000,"Number of examples to use.") 
+cmd:option('-iterations',30000,"Number of examples to use.") 
 cmd:option('-loadModel',0,"Load model") 
 cmd:option('-para',3,"Are we using a parallel network? If bigger than 0 then this is equal to number of inputs. Otherwise input number is 1.") 
 --cmd:option('-nInputScalingFactors',3,"Number of input scaling factors.") 
@@ -53,7 +53,7 @@ params.model = model
 params.rundir = cmd:string('results', params, {dir=true})
 
 -------------------------------------------- Model ---------------------------------------------------------
-modelPath = "models/para17.model"
+modelPath = "CSVFILES/subset"..params.fold.."/para17.model"..params.fold
 if params.loadModel == 1 then 
 	print("==> Loading model weights ")
 	model = torch.load(modelPath)
@@ -244,7 +244,7 @@ function train(inputs,targets)
 	--Plot & Confusion Matrix
 	if i % params.displayFreq == 0 then
 		gnuplot.figure(1)
-		print(batchLossesT:size())
+		--print(batchLossesT:size())
 		MA = ma:forward(batchLossesT)
 		MA:resize(MA:size()[1])
 		t = torch.range(1,MA:size()[1])
@@ -261,7 +261,7 @@ function train(inputs,targets)
 		torch.save(modelPath,model)
 	end
 
-	if i % 500 == 0 then
+	if i % 800 == 0 then
 		-- Learning rate change
 		print("==> Dropping lr from ",params.lr)
 		params.lr = params.lr/params.lrW
