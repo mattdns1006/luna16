@@ -67,8 +67,8 @@ print("==> Parameters",params)
 
 -------------------------------------------- Criterion & Activations
 ------------------------------------------
-criterion = nn.MSECriterion()
---criterion = nn.BCECriterion()
+--criterion = nn.MSECriterion()
+criterion = nn.BCECriterion()
 
 if params.log == 1 then  -- Log file local logPath = "results/"..params.rundir
 	paths.mkdir(logPath) logger = optim.Logger(logPath.. '/results.log')

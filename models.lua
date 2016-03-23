@@ -2,7 +2,7 @@ modelLayers = require "modelLayers"
 
 models = {}
 
-function miniNetwork(nConvs,fSize)
+function miniNetwork(nConvs,fSize, doubleUpConvs)
 	local model = nn.Sequential()
 	nFiltersInc = 42 
 	--nFiltersInc = 48 
@@ -23,14 +23,15 @@ function miniNetwork(nConvs,fSize)
 	for i = 1,nConvs do 
 
 		modelLayers.add3DConv(model, layerNu, nFilters, filterSizeConv, strideConv, paddingConv,0)
-		--[[
-		modelLayers.addBN(model, layerNu, nFilters)
-		modelLayers.add3DConv(model, layerNu, nFilters, filterSizeConv, strideConv, paddingConv,1)
-		]]--
-		--
-		--model:add(nn.ReLU())
+		if doubleUpConvs == 1 then
+			model:add(nn.ReLU())
+			modelLayers.addBN(model, layerNu, nFilters)
+			modelLayers.add3DConv(model, layerNu, nFilters, filterSizeConv, strideConv, paddingConv,1)
+		end
+
+		model:add(nn.ReLU())
 		--model:add(nn.PReLU())
-		model:add(nn.Tanh())
+		--model:add(nn.Tanh())
 		modelLayers.addMP(model, layerNu, sizeMP, strideMP, paddingMP)
 		modelLayers.addBN(model, layerNu, nFilters)
 		layerNu = layerNu + 1
@@ -58,9 +59,9 @@ function models.parallelNetwork()
 	-- Parallel Table forwards the ith member module to the i-th input i.e. we need to feed it a table of size 3 in this case
 	model = nn.Sequential()
 	mother = nn.ParallelTable(3)	
-	mother:add(miniNetwork(3,4))	
-	mother:add(miniNetwork(3,4))	
-	mother:add(miniNetwork(3,4))	
+	mother:add(miniNetwork(3,4,1))	-- First network has back to back convolutions
+	mother:add(miniNetwork(3,4,0))	
+	mother:add(miniNetwork(3,4,0))	
 	model:add(mother)
 	model:add(nn.JoinTable(1))
 	--[[

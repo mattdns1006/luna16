@@ -18,7 +18,7 @@ loadData.Init = function()
 			C1Path ="CSVFILES/subset"..params.fold.."/candidatesTest.csv" 
 			print("==> Full testing on csv files; "..C0Path..", "..C1Path..".")
 		else 
-			print("==> k fold cross validation training on folds "..params.fold..)
+			print("==> k fold cross validation training on folds "..params.fold)
 			C0Path = "CSVFILES/subset"..params.fold.."/candidatesClass0"..trainTest..".csv"
 			C1Path = "CSVFILES/subset"..params.fold.."/candidatesClass1"..trainTest..".csv"
 			print("==> "..trainTest.."ing on csv files; "..C0Path..", "..C1Path..".")

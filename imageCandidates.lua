@@ -124,10 +124,33 @@ function Data:getNextCandidate()
 	self.currentCandidate = self.currentCandidate + 1
 	if self.currentCandidate >= #self.scanCandidates then 
 		self.finishedScan = true 
-		self.currentScanNumber = self.currentScanNumber + 1
+		
+		if self.currentScanNumber >= self.nScans then
+			print("Been through all the scans, starting from scan number one.")
+			self.currentScanNumber = 1
+		else
+			self.currentScanNumber = self.currentScanNumber + 1
+		end
 	end -- If we are at the end of the batch we flag in order to prompt a recall of getNewScan
 
 end
 
-eg = "CSVFILES/subset0/candidatesTest.csv"
+eg = "CSVFILES/subset40/eg.csv"
 data = Data:new(eg,-1200,1200,42)
+
+
+for i = 1, 18 do 
+	local i = 1
+	data:getNewScan()
+	while data.finishedScan ~= true do 
+		data:getNextCandidate()
+		i = i + 1
+	end
+	print("n candidates = " , i)
+end
+
+
+
+
+
+
