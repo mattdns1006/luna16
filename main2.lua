@@ -31,6 +31,7 @@ cmd:option('-scalingFactorVar',0.01,'Scaling factor variance for image')
 cmd:option('-clipMin',-1200,'Clip image below this value to this value')
 cmd:option('-clipMax',1200,'Clip image above this value to this value')
 cmd:option('-cmThresh',0.5,'confusion matrix threshold')
+cmd:option('-rocInterval',0.02,'confusion matrix roc rocInterval for smooth plots')
 cmd:option('-nThreads',6,"How many threads to load/preprocess data with?") 
 cmd:option('-display',0,"Display images/plots") 
 cmd:option('-displayFreq',40,"How often per iteration do we display an image? ") 
@@ -110,7 +111,7 @@ if params.para > 0 then
 end
 -------------------------------------------- Misc Init ---------------------------------------------------
 
-cm = BinaryConfusionMatrix.new(params.cmThresh)
+cm = BinaryConfusionMatrix.new(params.cmThresh,params.rocInterval)
 ma = MovingAverage.new(params.ma)
 
 -------------------------------------------- Loading data with threads ---------------------------------------------------
@@ -236,7 +237,7 @@ function train(inputs,targets)
 	if i > params.ma then 
 		accMa = accuracciesT[{{-params.ma,-1}}]:mean()
 		print(string.format("Iteration %d accuracy= %f. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ", i, accuracy, batchLossesT[{{-params.ma,-1}}]:mean(), accMa,accuracciesT:mean()))
-		cm:performance()
+
 		--print(string.format("Accuracy (value) overall = %f",accuracciesT:mean()))
 
 	end
@@ -251,6 +252,8 @@ function train(inputs,targets)
 		gnuplot.plot({"Train loss ma ",t,MA})
 		print("==> Confusion matrix")
 		print(cm.cm)
+		cm:performance()
+		cm:roc()
 		print("==> Linear weighting of sub nets")
 		print(model:get(3).weight)
 	end
@@ -298,6 +301,7 @@ function test(inputs,targets)
 	loss = criterion:forward(predictions,targets)
 	cm:add(predictions[1],targets[1][1])
 
+
 	-- Performance metrics
 	accuracy = binaryAccuracy(targets,predictions,params.cuda)
 	loss = criterion:forward(predictions,targets)
@@ -318,13 +322,13 @@ function test(inputs,targets)
 	--Plot & Confusion Matrix
 	if i % params.displayFreq  == 0 then
 		gnuplot.figure(1)
-		print(batchLossesT:size())
 		MA = ma:forward(batchLossesT)
 		MA:resize(MA:size()[1])
 		t = torch.range(1,MA:size()[1])
 		gnuplot.plot({"Test loss ma ",t,MA})
 		print("==> Confusion matrix")
 		print(cm.cm)
+		cm:roc()
 		print("==> Linear weighting of sub nets")
 		print(model:get(3).weight)
 	end

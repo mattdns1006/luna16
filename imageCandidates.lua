@@ -134,7 +134,7 @@ function Data:getNextCandidate()
 	end -- If we are at the end of the batch we flag in order to prompt a recall of getNewScan
 
 end
-
+--[[
 eg = "CSVFILES/subset40/eg.csv"
 data = Data:new(eg,-1200,1200,42)
 
@@ -148,6 +148,7 @@ for i = 1, 18 do
 	end
 	print("n candidates = " , i)
 end
+]]--
 
 
 
