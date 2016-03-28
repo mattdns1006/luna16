@@ -51,6 +51,8 @@ function BinaryConfusionMatrix:roc()
 	fpr = torch.Tensor{fpr}:squeeze()
 	gnuplot.plot(fpr,tpr)
 	gnuplot.axis{0,1,0,1}
+	gnuplot.xlabel("False positive rate")
+	gnuplot.ylabel("True positive rate")
 	gnuplot.plotflush()
 	gnuplot.grid(true)
 	gnuplot.title("ROC")
@@ -65,12 +67,12 @@ end
 
 --Example
 function rocExample()
-	cm = BinaryConfusionMatrix.new(0.6,0.01)
+	cm = BinaryConfusionMatrix.new(0.6,0.005)
 	time = torch.Timer()
-	for i = 1, 100 do
+	for i = 1, 1000 do
 		target = torch.bernoulli()
 		if target == 1 then
-			prediction = torch.uniform(0.3,1)
+			prediction = torch.uniform(0.5,1)
 		else
 			prediction = torch.uniform(0,0.7)
 		end 
