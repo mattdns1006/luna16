@@ -31,7 +31,7 @@ cmd:option('-scalingFactor',0.75,'Scaling factor for image')
 cmd:option('-scalingFactorVar',0.01,'Scaling factor variance for image')
 cmd:option('-clipMin',-1200,'Clip image below this value to this value')
 cmd:option('-clipMax',1200,'Clip image above this value to this value')
-cmd:option('-cmThresh',0.5,'confusion matrix threshold')
+cmd:option('-cmThresh',0.8,'confusion matrix threshold')
 cmd:option('-rocInterval',0.02,'confusion matrix roc rocInterval for smooth plots')
 cmd:option('-nThreads',6,"How many threads to load/preprocess data with?") 
 cmd:option('-display',0,"Display images/plots") 
@@ -136,6 +136,7 @@ do
 				print(string.format('Initializing training thread with id: %d ', tid))
 			end
 			params = options -- pass to all donkeys via upvalue
+			params.tid = tid -- pass thread id as a paramter
 			loadData = require "loadData"
 			loadData.Init()
 			print("==> Initialized.")
@@ -250,7 +251,7 @@ function train(inputs,targets)
 		MA = ma:forward(batchLossesT)
 		MA:resize(MA:size()[1])
 		t = torch.range(1,MA:size()[1])
-		gnuplot.plot({"Train loss ma ",t,MA})
+		--gnuplot.plot({"Train loss ma ",t,MA})
 		print("==> Confusion matrix")
 		print(cm.cm)
 		cm:performance()
@@ -315,8 +316,8 @@ function test(inputs,targets)
 	if i > params.ma then 
 		accMa = accuracciesT[{{-params.ma,-1}}]:mean()
 		--print(string.format("Iteration %d accuracy= %f. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ", i, accuracy, batchLossesT[{{-ma,-1}}]:mean(), accMa,accuracciesT:mean()))
-		print(string.format("Accuracy (value) overall = %f",accuracciesT:mean()))
-		cm:performance()
+
+
 
 	end
 
@@ -326,12 +327,14 @@ function test(inputs,targets)
 		MA = ma:forward(batchLossesT)
 		MA:resize(MA:size()[1])
 		t = torch.range(1,MA:size()[1])
-		gnuplot.plot({"Test loss ma ",t,MA})
+		--gnuplot.plot({"Test loss ma ",t,MA})
 		print("==> Confusion matrix")
 		print(cm.cm)
+		cm:performance()
 		cm:roc()
-		print("==> Linear weighting of sub nets")
-		print(model:get(3).weight)
+		--print("==> Linear weighting of sub nets")
+		--print(model:get(3).weight)
+		print(string.format("Accuracy (value) overall = %f",accuracciesT:mean()))
 	end
 
 	displayImageInit()
@@ -347,33 +350,48 @@ end
 inputs = {}
 targets = {}
 testCsv = {}
+time = torch.Timer()
 testCsv[1] = {"seriesuid","coordX","coordY","coordZ","class","probability"}
+threadsFinished = 0 
 if params.run == 1 then 
-	if params.test == 1 then params.iterations = 3000 end 
-	for i = 1, params.iterations do 
+	if params.test == 1 then params.iterations = 100 end 
+	while true do 
+	--for i = 1, params.iterations do 
 		donkeys:addjob(function()
 					x,y = loadData.getBatch(C0,C1,params.batchSize,params.sliceSize,params.clipMin,
 					params.clipMax,params.angleMax,params.scalingFactor,params.scalingFactorVar,
-					params.test,params.para)
+					params.test,params.para,params.fullTest)
 					return x,y,relaventInfo
 				end,
 				function(x,y,relaventInfo)
 					if params.test == 1 or params.fullTest == 1 then
 						test(x,y)
 						relaventInfo[#relaventInfo+1] = predictions[1]
-						testCsv[#testCsv + 1] = relaventInfo
+						local threadEpoch = relaventInfo[6]
+						if threadEpoch == 0 then  -- If we are on the first test epoch per thread then add to testcsv
+							--print("adding to csv")
+							testCsv[#testCsv + 1] = relaventInfo
+						elseif threadEpoch ==1 then 
+							threadsFinished = threadsFinished + 1
+							print("Threads finished",threadsFinished)
+						else 
+							--print("")
+						end
 					else 
 						train(x,y)
 					end
 				end
 				)
+		if threadsFinished == params.nThreads then
+			break
+		end
 	end
 	donkeys:synchronize()
 end
 
 if params.fullTest ==1 then
 	print("==> Writing test submission")
-	csvigo.save("CSVFILES/testSubmission"..params.fold..".csv",testCsv)
+	csvigo.save("CSVFILES/subset"..params.fold.."/testSubmission"..params.fold..".csv",testCsv)
 end
 
 

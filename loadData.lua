@@ -13,9 +13,11 @@ loadData.Init = function()
 			trainTest = "Train"
 		end
 		if params.fullTest == 1 then 
-			print("==> Proper test set regarding competition i.e. imbalanced test set")
-			C0Path ="CSVFILES/subset"..params.fold.."/candidatesTest.csv" 
-			C1Path ="CSVFILES/subset"..params.fold.."/candidatesTest.csv" 
+			--print("==> Proper test set regarding competition i.e. imbalanced test set")
+			--C0Path ="CSVFILES/subset"..params.fold.."/candidatesTest.csv" 
+			--C1Path ="CSVFILES/subset"..params.fold.."/candidatesTest.csv" 
+			C0Path ="CSVFILES/subset"..params.fold.."/candidatesTestSmall.csv" 
+			C1Path ="CSVFILES/subset"..params.fold.."/candidatesTestSmall.csv" 
 			print("==> Full testing on csv files; "..C0Path..", "..C1Path..".")
 		else 
 			print("==> k fold cross validation training on folds "..params.fold)
@@ -31,20 +33,21 @@ loadData.Init = function()
 				maxSlice = v
 			end
 		end
-		C0 = Data:new(C0Path,params.clipMin,params.clipMax,maxSlice)
-		C1 = Data:new(C1Path,params.clipMin,params.clipMax,maxSlice)
+		C0 = Data:new(C0Path,params.clipMin,params.clipMax,maxSlice,params.tid,params.nThreads)
+		C1 = Data:new(C1Path,params.clipMin,params.clipMax,maxSlice,params.tid,params.nThreads)
 	end
 	C0:getNewScan()
 	C1:getNewScan()
 end
 
-loadData.getBatch = function(data1,data2,batchSize,sliceSize,clipMin,clipMax,angleMax,scalingFactor,scalingFactorVar,test,para)
+loadData.getBatch = function(data1,data2,batchSize,sliceSize,clipMin,clipMax,angleMax,scalingFactor,scalingFactorVar,test,para,fullTest)
 		--Make empty table to loop into
 		X = {}
 		y = torch.Tensor(batchSize,1)
 		relaventInfo = nil
 		for i=1, batchSize do
-			if torch.uniform() < 0.5 then 
+			if fullTest == 1 then qunif = 1 else qunif = 0.5 end
+			if torch.uniform() < qunif then 
 				data = data1 
 			else 
 				data = data2 
@@ -60,6 +63,7 @@ loadData.getBatch = function(data1,data2,batchSize,sliceSize,clipMin,clipMax,ang
 
 				x = {}
 				X[i] = x
+				relaventInfo = data.relaventInfo
 				for i =1, para do
 					--[[
 					print("scalingFactor",scalingFactor[i])
@@ -68,7 +72,7 @@ loadData.getBatch = function(data1,data2,batchSize,sliceSize,clipMin,clipMax,ang
 					]]--
 				   x[i] = rotation3d(data, angleMax[i], sliceSize[i], clipMin, clipMax, scalingFactor[i] ,
 				   	  scalingFactorVar[i], test):reshape(1,1,sliceSize[i],sliceSize[i],sliceSize[i]):cuda()
-				   relaventInfo = data.relaventInfo
+
 				 end
 			else 
 				X[i] = rotation3d(data, angleMax, sliceSize, clipMin, clipMax, scalingFactor, 
