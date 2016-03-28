@@ -5,6 +5,7 @@ require "optim"
 require "torch"
 require "xlua"
 require "gnuplot"
+require "csvigo"
 threads = require "threads"
 dofile("binaryAccuracy.lua")
 dofile("binaryConfusionMatrix.lua")
@@ -345,6 +346,8 @@ end
  
 inputs = {}
 targets = {}
+testCsv = {}
+testCsv[1] = {"seriesuid","coordX","coordY","coordZ","class","probability"}
 if params.run == 1 then 
 	if params.test == 1 then params.iterations = 3000 end 
 	for i = 1, params.iterations do 
@@ -352,11 +355,13 @@ if params.run == 1 then
 					x,y = loadData.getBatch(C0,C1,params.batchSize,params.sliceSize,params.clipMin,
 					params.clipMax,params.angleMax,params.scalingFactor,params.scalingFactorVar,
 					params.test,params.para)
-					return x,y
+					return x,y,relaventInfo
 				end,
-				function(x,y)
+				function(x,y,relaventInfo)
 					if params.test == 1 or params.fullTest == 1 then
 						test(x,y)
+						relaventInfo[#relaventInfo+1] = predictions[1]
+						testCsv[#testCsv + 1] = relaventInfo
 					else 
 						train(x,y)
 					end
@@ -365,4 +370,17 @@ if params.run == 1 then
 	end
 	donkeys:synchronize()
 end
+
+if params.fullTest ==1 then
+	print("==> Writing test submission")
+	csvigo.save("CSVFILES/testSubmission"..params.fold..".csv",testCsv)
+end
+
+
+
+
+
+
+
+
 

@@ -42,6 +42,7 @@ loadData.getBatch = function(data1,data2,batchSize,sliceSize,clipMin,clipMax,ang
 		--Make empty table to loop into
 		X = {}
 		y = torch.Tensor(batchSize,1)
+		relaventInfo = nil
 		for i=1, batchSize do
 			if torch.uniform() < 0.5 then 
 				data = data1 
@@ -67,6 +68,7 @@ loadData.getBatch = function(data1,data2,batchSize,sliceSize,clipMin,clipMax,ang
 					]]--
 				   x[i] = rotation3d(data, angleMax[i], sliceSize[i], clipMin, clipMax, scalingFactor[i] ,
 				   	  scalingFactorVar[i], test):reshape(1,1,sliceSize[i],sliceSize[i],sliceSize[i]):cuda()
+				   relaventInfo = data.relaventInfo
 				 end
 			else 
 				X[i] = rotation3d(data, angleMax, sliceSize, clipMin, clipMax, scalingFactor, 
@@ -76,7 +78,7 @@ loadData.getBatch = function(data1,data2,batchSize,sliceSize,clipMin,clipMax,ang
 
 		end
 		collectgarbage()
-		return X,y
+		return X,y,relaventInfo
 end
 
 return loadData

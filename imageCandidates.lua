@@ -71,10 +71,12 @@ function Data:getNewScan()
 	local fileInfo = self.scanCandidates[1]:split(",")
 
 	-- Scan specific attributes
-	self.imgPath = fileInfo[1]
-	self.xSpacing = tonumber(fileInfo[3])
-	self.ySpacing = tonumber(fileInfo[4])
-	self.zSpacing = tonumber(fileInfo[5])
+
+	self.seriesuid = fileInfo[1]
+	self.imgPath = fileInfo[6]
+	self.xSpacing = tonumber(fileInfo[7])
+	self.ySpacing = tonumber(fileInfo[8])
+	self.zSpacing = tonumber(fileInfo[9])
 	self.scanName = scanName
 	self.currentCandidate = 1
 
@@ -85,10 +87,15 @@ function Data:getNewScan()
 	self.img:clamp(self.clipMin,self.clipMax) -- Clip image to keep only ROI
 
 	-- Initialize candidate (nodule) img at first candidate
-	self.Class = tonumber(fileInfo[2])
-	self.x = tonumber(fileInfo[6]) 
-	self.y = tonumber(fileInfo[7])
-	self.z = tonumber(fileInfo[8])
+	self.coordX = tonumber(fileInfo[2])
+	self.coordY = tonumber(fileInfo[3])
+	self.coordZ = tonumber(fileInfo[4])
+	self.Class = tonumber(fileInfo[5])
+	self.x = tonumber(fileInfo[10]) 
+	self.y = tonumber(fileInfo[11])
+	self.z = tonumber(fileInfo[12])
+	self.relaventInfo = {self.seriesuid,self.coordX,self.coordY,self.coordZ,self.Class}
+
 
 	-- Boolean to note whether we have finished going through all training examples in a scan
 	self.finishedScan = false 
@@ -97,10 +104,15 @@ end
 function Data:getNextCandidate()
 
 	local fileInfo = self.scanCandidates[self.currentCandidate]:split(",")
-	self.Class = tonumber(fileInfo[2])
-	self.x = tonumber(fileInfo[6]) 
-	self.y = tonumber(fileInfo[7])
-	self.z = tonumber(fileInfo[8])
+
+	self.coordX = tonumber(fileInfo[2])
+	self.coordY = tonumber(fileInfo[3])
+	self.coordZ = tonumber(fileInfo[4])
+	self.Class = tonumber(fileInfo[5])
+	self.x = tonumber(fileInfo[10]) 
+	self.y = tonumber(fileInfo[11])
+	self.z = tonumber(fileInfo[12])
+	self.relaventInfo = {self.seriesuid,self.coordX,self.coordY,self.coordZ,self.Class}
 
 	-- Function to check if nodule coords are near edge
 	function checkCoords(coord, coordMax, sliceSize)
@@ -134,22 +146,23 @@ function Data:getNextCandidate()
 	end -- If we are at the end of the batch we flag in order to prompt a recall of getNewScan
 
 end
---[[
-eg = "CSVFILES/subset40/eg.csv"
-data = Data:new(eg,-1200,1200,42)
 
+function imageCandidatesEg()
 
-for i = 1, 18 do 
-	local i = 1
-	data:getNewScan()
-	while data.finishedScan ~= true do 
-		data:getNextCandidate()
-		i = i + 1
+	eg = "CSVFILES/subset40/candidatesTest.csv"
+	data = Data:new(eg,-1200,1200,42)
+
+	for i = 1, 18 do 
+		local i = 1
+		data:getNewScan()
+		while data.finishedScan ~= true do 
+			data:getNextCandidate()
+			i = i + 1
+			print(data.relaventInfo)
+		end
+		print("n candidates = " , i)
 	end
-	print("n candidates = " , i)
 end
-]]--
-
 
 
 
