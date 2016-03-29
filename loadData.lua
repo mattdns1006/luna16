@@ -47,14 +47,29 @@ loadData.getBatch = function(data1,data2,batchSize,sliceSize,clipMin,clipMax,ang
 		relaventInfo = nil
 		for i=1, batchSize do
 			if fullTest == 1 then qunif = 1 else qunif = 0.5 end
+
 			if torch.uniform() < qunif then 
 				data = data1 
 			else 
 				data = data2 
 			end
 			
+			if data.stillGoing == 1 and fullTest ==1 then
+				data.stillGoing = 2
+				print(params.tid.." going to sleep.")
+				sys.sleep(10)
+				print(params.tid.." .")
+				return 0, 0, 0, 1
+			end
+			if data.stillGoing == 2 and fullTest ==1 then
+				print(params.tid.." still sleeping.")
+				sys.sleep(10)
+				return 0, 0, 0, 2
+			end
+
 			if data.finishedScan == true then
 				data:getNewScan()
+				data:getNextCandidate()
 			else
 				data:getNextCandidate()
 			end
@@ -71,7 +86,7 @@ loadData.getBatch = function(data1,data2,batchSize,sliceSize,clipMin,clipMax,ang
 					print("angleMax",angleMax[i])
 					]]--
 				   x[i] = rotation3d(data, angleMax[i], sliceSize[i], clipMin, clipMax, scalingFactor[i] ,
-				   	  scalingFactorVar[i], test):reshape(1,1,sliceSize[i],sliceSize[i],sliceSize[i]):cuda()
+					  scalingFactorVar[i], test):reshape(1,1,sliceSize[i],sliceSize[i],sliceSize[i]):cuda()
 
 				 end
 			else 
@@ -82,7 +97,7 @@ loadData.getBatch = function(data1,data2,batchSize,sliceSize,clipMin,clipMax,ang
 
 		end
 		collectgarbage()
-		return X,y,relaventInfo
+		return X,y,relaventInfo, 0
 end
 
 return loadData

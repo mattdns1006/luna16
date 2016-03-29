@@ -12,9 +12,9 @@ end
 
 Data = {}
 Data.__index = Data 
-
+--Data.stillGoing = 0
 function Data:new(path,clipMn,clipMx,sliceSze,threadId,nThreads)
-	local csv = csvToTable(path)
+	csv = csvToTable(path)
 	--print("tid",threadId)
 	--print("nT",nThreads)
 
@@ -29,13 +29,14 @@ function Data:new(path,clipMn,clipMx,sliceSze,threadId,nThreads)
 		end
 	end
 
-	csvThread = {} -- Make each thread have unique elements of the data set
+
+	csvThreadUnique = {} -- Make each thread have unique elements of the data set
 	nScansUnique = tableLength(csvUnique)
 	for i = threadId, nScansUnique, nThreads do
 		local j = 1
 		for k,v in pairs(csvUnique) do 
 			if j == i then
-				csvThread[k] = v
+				csvThreadUnique[k] = v
 			end
 			j = j + 1
 		end
@@ -46,19 +47,22 @@ function Data:new(path,clipMn,clipMx,sliceSze,threadId,nThreads)
 
 	return setmetatable({allCandidates = csv,
 			     --allScans = csvUnique,
-			     allScans = csvThread,
-		     	     nScans = tableLength(csvThread),
+			     allScans = csvThreadUnique,
+		     	     nScans = tableLength(csvThreadUnique),
 			     clipMin = clipMn,
 			     clipMax = clipMx,
 			     sliceSize = sliceSze,
 			     currentScanNumber = currentScanNum,
 			     tid = threadId,
-			     threadFinished = 0
+			     stillGoing = 0,
+			     threadFinished = 0,
+			     numberNodulesSeen = 0
 		     		},Data)
 end
 
 -- function that generates random scan with list of all candidates in that scan and appends it as an attribute as well as the clipped image
 function Data:getNewScan() 
+
 	--Draw random number 
 	--local obsNumber = torch.random(self.nScans)
 	--print("nscans",self.nScans)
@@ -103,6 +107,7 @@ function Data:getNewScan()
 	self.img:clamp(self.clipMin,self.clipMax) -- Clip image to keep only ROI
 
 	-- Initialize candidate (nodule) img at first candidate
+	--[[
 	self.coordX = tonumber(fileInfo[2])
 	self.coordY = tonumber(fileInfo[3])
 	self.coordZ = tonumber(fileInfo[4])
@@ -110,13 +115,19 @@ function Data:getNewScan()
 	self.x = tonumber(fileInfo[10]) 
 	self.y = tonumber(fileInfo[11])
 	self.z = tonumber(fileInfo[12])
-	self.relaventInfo = {self.seriesuid,self.coordX,self.coordY,self.coordZ,self.Class,self.threadFinished}
+	self.relaventInfo = {self.seriesuid,self.coordX,self.coordY,self.coordZ,self.Class}
+	]]--
 
 	-- Boolean to note whether we have finished going through all training examples in a scan
 	self.finishedScan = false 
 end
 
 function Data:getNextCandidate()
+
+	--[[
+	self.numberOfObs = self.numberOfObs + 1
+	print("Been through " ,self.numberOfObs)
+	]]--
 
 	local fileInfo = self.scanCandidates[self.currentCandidate]:split(",")
 
@@ -127,7 +138,7 @@ function Data:getNextCandidate()
 	self.x = tonumber(fileInfo[10]) 
 	self.y = tonumber(fileInfo[11])
 	self.z = tonumber(fileInfo[12])
-	self.relaventInfo = {self.seriesuid,self.coordX,self.coordY,self.coordZ,self.Class,self.threadFinished}
+	self.relaventInfo = {self.seriesuid,self.coordX,self.coordY,self.coordZ,self.Class}
 
 	-- Function to check if nodule coords are near edge
 	function checkCoords(coord, coordMax, sliceSize)
@@ -147,9 +158,10 @@ function Data:getNextCandidate()
 	self.z = checkCoords(self.z,self.img:size()[1],self.sliceSize)
 	self.y = checkCoords(self.y,self.img:size()[2],self.sliceSize)
 	self.x = checkCoords(self.x,self.img:size()[3],self.sliceSize)
+	self.numberNodulesSeen = self.numberNodulesSeen + 1
 
 	--print("getting new candidate", self.currentCandidate, #self.scanCandidates)
-	--print(string.format("Thread %d, on scan %d out of %d. Candidate %d out of %d. Thread epochs %d.",self.tid,self.currentScanNumber,self.nScans,self.currentCandidate,#self.scanCandidates,self.threadFinished))
+	--print(string.format("Thread %d, on scan %d out of %d. Candidate %d out of %d. Thread epochs %d. Total number of nodules seen %d.",self.tid,self.currentScanNumber,self.nScans,self.currentCandidate,#self.scanCandidates,self.threadFinished,self.numberNodulesSeen))
 
 	if self.currentCandidate == #self.scanCandidates then -- Check to see if we have been through all the candidates in a scan
 		-- If we are at the end of the batch we flag in order to prompt a recall of getNewScan
@@ -158,6 +170,7 @@ function Data:getNextCandidate()
 
 		-- Also we check to see if we have been through all of the scans in the csv for the particular thread
 		if self.currentScanNumber == self.nScans then
+			self.stillGoing = 1
 			self.threadFinished = self.threadFinished + 1 -- Essentially the number of epochs for that thread
 			print("==> Thread ".. self.tid .." has been through all the scans, starting from scan number one.")
 			print("==> Thread ".. self.tid .." now on epoch number ".. self.threadFinished)
@@ -173,20 +186,25 @@ function Data:getNextCandidate()
 
 end
 
+
 function imageCandidatesEg()
 	eg = "CSVFILES/subset40/candidatesTestSmall.csv"
-	data = Data:new(eg,-1200,1200,42,2,3)
+	data = Data:new(eg,-1200,1200,42,1,1)
 
-	for i = 1, 200 do 
-		local i = 1
 
+	local i = 0
+	while true do
+
+		print(data.allScans)
 		data:getNewScan()
 		while data.finishedScan ~= true do 
 			data:getNextCandidate()
 			i = i + 1
-			print(data.relaventInfo)
+			print("Observation ",i)
+		print("Is scan finished? (Have we been through all the candidates) ", data.finishedScan)
+		print("Have we beedn through all the scans?", data.threadFinished)
 		end
-		print("n candidates = " , i)
+		--print("n candidates = " , i)
 	end
 end
 

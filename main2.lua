@@ -35,7 +35,7 @@ cmd:option('-cmThresh',0.8,'confusion matrix threshold')
 cmd:option('-rocInterval',0.02,'confusion matrix roc rocInterval for smooth plots')
 cmd:option('-nThreads',6,"How many threads to load/preprocess data with?") 
 cmd:option('-display',0,"Display images/plots") 
-cmd:option('-displayFreq',60,"How often per iteration do we display an image? ") 
+cmd:option('-displayFreq',90,"How often per iteration do we display an image? ") 
 cmd:option('-ma',40,"Moving average paramter for graph") 
 cmd:option('-activations',0,"Show activations -- needs -display 1") 
 cmd:option('-log',0,"Make log file in /Results/") 
@@ -353,36 +353,35 @@ testCsv[1] = {"seriesuid","coordX","coordY","coordZ","class","probability"}
 threadsFinished = 0 
 if params.run == 1 then 
 	if params.test == 1 then params.iterations = 100 end 
-	while true do 
-	--for i = 1, params.iterations do 
+	while threadsFinished < params.nThreads do 
+		--print("nThreads finished = ", threadsFinished)
 		donkeys:addjob(function()
-					x,y = loadData.getBatch(C0,C1,params.batchSize,params.sliceSize,params.clipMin,
+					local x,y,relaventInfo,threadStatus = loadData.getBatch(C0,C1,params.batchSize,params.sliceSize,params.clipMin,
 					params.clipMax,params.angleMax,params.scalingFactor,params.scalingFactorVar,
 					params.test,params.para,params.fullTest)
-					return x,y,relaventInfo
+					--print("LOCAL thread ",params.tid, " has threadstatus ", threadStatus)
+					return x,y,relaventInfo,threadStatus, params.tid
 				end,
-				function(x,y,relaventInfo)
+				function(x,y,relaventInfo,threadStatus,tid)
+
+					--print("GLOBAL thread ",tid, " has threadstatus ", threadStatus)
 					if params.test == 1 or params.fullTest == 1 then
-						test(x,y)
-						relaventInfo[#relaventInfo+1] = predictions[1]
-						local threadEpoch = relaventInfo[6]
-						if threadEpoch == 0 then  -- If we are on the first test epoch per thread then add to testcsv
-							--print("adding to csv")
+						if threadStatus == 0 then
+							test(x,y)
+							relaventInfo[#relaventInfo + 1] = predictions[1]
+							--relaventInfo[#relaventInfo + 1] = tid
 							testCsv[#testCsv + 1] = relaventInfo
-						elseif threadEpoch ==1 then 
+						elseif threadStatus == 1 then
+							print(tid, " has finished.***********")
 							threadsFinished = threadsFinished + 1
-							print("Threads finished",threadsFinished)
-						else 
-							--print("")
 						end
+
+						--print("Threads finished  = ",  threadsFinished)
 					else 
 						train(x,y)
 					end
 				end
 				)
-		if threadsFinished == params.nThreads then
-			break
-		end
 	end
 	donkeys:synchronize()
 end
