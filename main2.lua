@@ -55,7 +55,7 @@ params.model = model
 params.rundir = cmd:string('results', params, {dir=true})
 
 -------------------------------------------- Model ---------------------------------------------------------
-modelPath = "CSVFILES/subset"..params.fold.."/para17.model"..params.fold
+modelPath = "CSVFILES/subset"..params.fold.."/para18.model"..params.fold
 if params.loadModel == 1 then 
 	print("==> Loading model weights ")
 	model = torch.load(modelPath)
@@ -237,15 +237,13 @@ function train(inputs,targets)
 	batchLossesT = torch.Tensor(batchLosses)
 	local t = torch.range(1,batchLossesT:size()[1])
 	if i > params.ma then 
-		accMa = accuracciesT[{{-params.ma,-1}}]:mean()
-		print(string.format("Iteration %d accuracy= %f. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ", i, accuracy, batchLossesT[{{-params.ma,-1}}]:mean(), accMa,accuracciesT:mean()))
-
 		--print(string.format("Accuracy (value) overall = %f",accuracciesT:mean()))
-
 	end
 
 	--Plot & Confusion Matrix
-	if i % params.displayFreq == 0 then
+	if i % params.displayFreq == 0 and i > params.ma then
+		accMa = accuracciesT[{{-params.ma,-1}}]:mean()
+		print(string.format("Iteration %d accuracy= %f. MA loss of last 20 batches == > %f. MA accuracy ==> %f. Overall accuracy ==> %f ", i, accuracy, batchLossesT[{{-params.ma,-1}}]:mean(), accMa,accuracciesT:mean()))
 		gnuplot.figure(1)
 		--print(batchLossesT:size())
 		MA = ma:forward(batchLossesT)
